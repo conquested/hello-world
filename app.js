@@ -40,16 +40,24 @@ const SHORT  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov
 
 // ── State ──────────────────────────────────────────────────────────────────────
 
+const PERSONS = [
+  { id: 'A', label: 'Person A', color: '#3b82f6' },
+  { id: 'B', label: 'Person B', color: '#a855f7' },
+];
+
 const S = {
   view: 'calendar',
   year: new Date().getFullYear(),
   month: new Date().getMonth(),
   search: '',
   filters: new Set(['all']),
+  activePerson: 'all',
   transactions: [],
   goals: [],
   debts: [],
   budgets: {},
+  persons: { A: 'Person A', B: 'Person B' },
+  importMappings: {},
   modal: null,
 };
 
@@ -58,16 +66,21 @@ const S = {
 function load() {
   try {
     const d = JSON.parse(localStorage.getItem('bb2') || '{}');
-    S.transactions = d.transactions || [];
-    S.goals        = d.goals        || [];
-    S.debts        = d.debts        || [];
-    S.budgets      = d.budgets      || {};
+    S.transactions    = d.transactions    || [];
+    S.goals           = d.goals           || [];
+    S.debts           = d.debts           || [];
+    S.budgets         = d.budgets         || {};
+    S.persons         = d.persons         || { A: 'Person A', B: 'Person B' };
+    S.importMappings  = d.importMappings  || {};
+    // Migrate: existing transactions default to person A
+    S.transactions.forEach(tx => { if (!tx.person) tx.person = 'A'; });
   } catch {}
 }
 
 function save() {
   localStorage.setItem('bb2', JSON.stringify({
-    transactions: S.transactions, goals: S.goals, debts: S.debts, budgets: S.budgets,
+    transactions: S.transactions, goals: S.goals, debts: S.debts,
+    budgets: S.budgets, persons: S.persons, importMappings: S.importMappings,
   }));
 }
 
@@ -176,6 +189,10 @@ function applyFilters(events) {
   return events.filter(({tx}) => {
     if (S.search && !tx.name.toLowerCase().includes(S.search)) return false;
     if (!S.filters.has('all') && !S.filters.has(tx.categoryId)) return false;
+    if (S.activePerson !== 'all') {
+      if (S.activePerson === 'joint') { if (tx.person !== 'joint') return false; }
+      else if (tx.person !== S.activePerson && tx.person !== 'joint') return false;
+    }
     return true;
   });
 }
@@ -278,9 +295,14 @@ function renderUpcoming() {
   const seen  = new Set();
   const items = [];
 
-  const filteredTx = S.filters.has('all')
-    ? S.transactions
-    : S.transactions.filter(tx => S.filters.has(tx.categoryId));
+  const filteredTx = S.transactions.filter(tx => {
+    if (!S.filters.has('all') && !S.filters.has(tx.categoryId)) return false;
+    if (S.activePerson !== 'all') {
+      if (S.activePerson === 'joint') return tx.person === 'joint';
+      return tx.person === S.activePerson || tx.person === 'joint';
+    }
+    return true;
+  });
 
   for (let offset=0; offset<=14; offset++) {
     const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + offset);
@@ -517,7 +539,7 @@ function renderTrends() {
   for (let i=5; i>=0; i--) {
     let y=now.getFullYear(), m=now.getMonth()-i;
     while(m<0){m+=12;y--;}
-    const evs=monthEvents(y,m);
+    const evs=applyFilters(monthEvents(y,m));
     let inc=0,exp=0;
     evs.forEach(({tx})=>{ getCat(tx.categoryId).type==='income'?inc+=tx.amount:exp+=tx.amount; });
     data.push({label:SHORT[m],year:y,month:m,inc,exp,bal:inc-exp});
@@ -592,6 +614,7 @@ function openTxModal(data={}, editing=false) {
   S.modal = {type:'transaction', editing, data:{...data}};
   const selColor = data.color || PALETTE[8];
   S.modal.data.selectedColor = selColor;
+  if (!S.modal.data.person) S.modal.data.person = S.activePerson === 'all' ? 'A' : (S.activePerson === 'joint' ? 'joint' : S.activePerson);
 
   const catOpts = CATEGORIES.map(c=>
     `<option value="${c.id}" ${c.id===(data.categoryId||'food')?'selected':''}>${c.icon} ${c.label}</option>`
@@ -614,7 +637,7 @@ function openTxModal(data={}, editing=false) {
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Amount ($)</label>
-        <input class="form-input" id="f-amount" type="number" min="0.01" step="0.01" value="${data.amount||\'\'}" placeholder="0.00" oninput="updateAnnual()" />
+        <input class="form-input" id="f-amount" type="number" min="0.01" step="0.01" value="${data.amount||''}" placeholder="0.00" oninput="updateAnnual()" />
       </div>
       <div class="form-group">
         <label class="form-label">Category</label>
@@ -628,12 +651,12 @@ function openTxModal(data={}, editing=false) {
       </div>
       <div class="form-group">
         <label class="form-label">Start Date</label>
-        <input class="form-input" id="f-date" type="date" value="${data.startDate||\'\'}" />
+        <input class="form-input" id="f-date" type="date" value="${data.startDate||''}" />
       </div>
     </div>
     <div class="form-group">
       <label class="form-label">End Date <span class="optional-lbl">optional — stops recurrence</span></label>
-      <input class="form-input" id="f-enddate" type="date" value="${data.endDate||\'\'}" />
+      <input class="form-input" id="f-enddate" type="date" value="${data.endDate||''}" />
     </div>
     <div class="form-group">
       <label class="form-label">Color</label>
@@ -642,6 +665,14 @@ function openTxModal(data={}, editing=false) {
         <input class="color-custom" id="f-color" type="color" value="${selColor}" oninput="pickColor(this.value)" />
       </div>
       <div id="annual-display"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Person</label>
+      <div class="person-toggle">
+        <button class="person-btn${(data.person||'A')==='A'?' active':''}" data-person="A" onclick="pickPerson('A')" style="--pc:${PERSONS[0].color}">${esc(S.persons.A)}</button>
+        <button class="person-btn${(data.person||'A')==='B'?' active':''}" data-person="B" onclick="pickPerson('B')" style="--pc:${PERSONS[1].color}">${esc(S.persons.B)}</button>
+        <button class="person-btn${(data.person||'A')==='joint'?' active':''}" data-person="joint" onclick="pickPerson('joint')" style="--pc:#22c55e">Joint</button>
+      </div>
     </div>
     <div class="form-group">
       <label class="form-label">Note (optional)</label>
@@ -658,6 +689,11 @@ function pickColor(c) {
   document.querySelectorAll('.color-swatch').forEach(s=>s.classList.toggle('selected', s.dataset.color===c));
   const ci = document.getElementById('f-color');
   if (ci) ci.value = c;
+}
+
+function pickPerson(p) {
+  if (S.modal) S.modal.data.person = p;
+  document.querySelectorAll('.person-btn').forEach(b => b.classList.toggle('active', b.dataset.person === p));
 }
 
 function updateAnnual() {
@@ -691,7 +727,7 @@ function openGoalModal(id) {
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Target Amount ($)</label>
-        <input class="form-input" id="f-target" type="number" min="1" step="1" value="${g?.target||\'\'}" placeholder="0.00" />
+        <input class="form-input" id="f-target" type="number" min="1" step="1" value="${g?.target||''}" placeholder="0.00" />
       </div>
       <div class="form-group">
         <label class="form-label">Amount Saved ($)</label>
@@ -700,7 +736,7 @@ function openGoalModal(id) {
     </div>
     <div class="form-group">
       <label class="form-label">Target Date</label>
-      <input class="form-input" id="f-date" type="date" value="${g?.targetDate||\'\'}" />
+      <input class="form-input" id="f-date" type="date" value="${g?.targetDate||''}" />
     </div>
     <div class="form-group">
       <label class="form-label">Color</label>
@@ -731,16 +767,16 @@ function openDebtModal(id) {
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Current Balance ($)</label>
-        <input class="form-input" id="f-balance" type="number" min="0" step="0.01" value="${d?.balance||\'\'}" placeholder="0.00" />
+        <input class="form-input" id="f-balance" type="number" min="0" step="0.01" value="${d?.balance||''}" placeholder="0.00" />
       </div>
       <div class="form-group">
         <label class="form-label">Interest Rate (APR %)</label>
-        <input class="form-input" id="f-rate" type="number" min="0" step="0.01" value="${d?.rate||\'\'}" placeholder="e.g. 22.99" />
+        <input class="form-input" id="f-rate" type="number" min="0" step="0.01" value="${d?.rate||''}" placeholder="e.g. 22.99" />
       </div>
     </div>
     <div class="form-group">
       <label class="form-label">Monthly Payment ($)</label>
-      <input class="form-input" id="f-payment" type="number" min="0" step="0.01" value="${d?.payment||\'\'}" placeholder="0.00" />
+      <input class="form-input" id="f-payment" type="number" min="0" step="0.01" value="${d?.payment||''}" placeholder="0.00" />
     </div>
     <div class="form-group">
       <label class="form-label">Color</label>
@@ -760,7 +796,7 @@ function openBudgetModal() {
     <div class="budget-form-row">
       <div class="budget-cat-label">${c.icon} ${c.label}</div>
       <input class="form-input" id="fb-${c.id}" type="number" min="0" step="1"
-             value="${S.budgets[c.id]||\'\'}" placeholder="No limit" />
+             value="${S.budgets[c.id]||''}" placeholder="No limit" />
     </div>`).join('');
 
   document.getElementById('modal-title').textContent = '💰 Monthly Budgets';
@@ -789,6 +825,7 @@ function modalSave() {
   else if (t==='goal')        saveGoal();
   else if (t==='debt')        saveDebt();
   else if (t==='budgets')     saveBudgets();
+  // import handles its own save buttons
 }
 
 function modalDelete() {
@@ -810,7 +847,8 @@ function saveTx() {
   const color   = S.modal.data.selectedColor || PALETTE[8];
   if (!name||!amount||amount<=0||!date) return;
 
-  const obj = {name,amount,categoryId:cat,frequency:freq,startDate:date,note,color};
+  const person = S.modal.data.person || 'A';
+  const obj = {name,amount,categoryId:cat,frequency:freq,startDate:date,note,color,person};
   if (endDate) obj.endDate = endDate; else delete obj.endDate;
   if (S.modal.editing && S.modal.data.id) {
     const i = S.transactions.findIndex(t=>t.id===S.modal.data.id);
@@ -902,6 +940,12 @@ function toggleFilter(id) {
   renderFilterBar(); renderCalendar(); renderSummary(); renderUpcoming(); renderAnalysis();
 }
 
+function switchPerson(p) {
+  S.activePerson = p;
+  document.querySelectorAll('.person-filter-btn').forEach(b => b.classList.toggle('active', b.dataset.p === p));
+  render();
+}
+
 function switchView(v) {
   S.view=v;
   document.querySelectorAll('.view').forEach(el=>el.classList.toggle('active', el.id==='view-'+v));
@@ -917,6 +961,240 @@ function exportData() {
   const blob = new Blob([JSON.stringify({transactions:S.transactions,goals:S.goals,debts:S.debts},null,2)], {type:'application/json'});
   const a    = Object.assign(document.createElement('a'), {href:URL.createObjectURL(blob), download:`budget-${new Date().toISOString().slice(0,10)}.json`});
   a.click(); URL.revokeObjectURL(a.href);
+}
+
+// ── CSV Import ─────────────────────────────────────────────────────────────────
+
+function openImportModal() {
+  S.modal = {type: 'import', editing: false, data: {step: 'upload'}};
+  document.getElementById('modal-title').textContent = '📥 Import CSV';
+  document.getElementById('modal-delete-btn').style.display = 'none';
+  document.getElementById('modal-save-btn').style.display = 'none';
+  renderImportStep();
+  showModal(true);
+}
+
+function renderImportStep() {
+  const d = S.modal.data;
+  const body = document.getElementById('modal-body');
+
+  if (d.step === 'upload') {
+    const profiles = Object.keys(S.importMappings);
+    const profileHtml = profiles.length ? `
+      <div class="form-group">
+        <label class="form-label">Saved Profiles</label>
+        <select class="form-select" id="imp-profile">
+          <option value="">— New mapping —</option>
+          ${profiles.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('')}
+        </select>
+      </div>` : '';
+
+    body.innerHTML = `
+      <div class="import-hint">Upload a CSV exported from your bank. You'll map columns in the next step.</div>
+      ${profileHtml}
+      <div class="form-group">
+        <label class="form-label">Person</label>
+        <div class="person-toggle">
+          <button class="person-btn active" data-person="A" onclick="pickImportPerson('A')" style="--pc:${PERSONS[0].color}">${esc(S.persons.A)}</button>
+          <button class="person-btn" data-person="B" onclick="pickImportPerson('B')" style="--pc:${PERSONS[1].color}">${esc(S.persons.B)}</button>
+          <button class="person-btn" data-person="joint" onclick="pickImportPerson('joint')" style="--pc:#22c55e">Joint</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">CSV File</label>
+        <input class="form-input" id="imp-file" type="file" accept=".csv,text/csv" />
+      </div>
+      <div class="import-actions">
+        <button class="btn btn-primary" onclick="loadImportFile()">Next: Map Columns →</button>
+      </div>`;
+    d.importPerson = S.activePerson === 'all' ? 'A' : (S.activePerson === 'joint' ? 'joint' : S.activePerson);
+  }
+
+  if (d.step === 'map') {
+    const headers = d.headers;
+    const opts = headers.map((h,i)=>`<option value="${i}" ${''} >${esc(h)}</option>`).join('');
+    const guess = col => {
+      const n = col.toLowerCase();
+      if (/date/.test(n)) return 'date';
+      if (/desc|memo|narr|name|payee/.test(n)) return 'desc';
+      if (/amount|amt|debit|credit/.test(n)) return 'amount';
+      return '';
+    };
+    const guessIdx = (type) => {
+      const idx = headers.findIndex(h => guess(h) === type);
+      return idx >= 0 ? idx : 0;
+    };
+
+    const saved = S.importMappings[d.profileName] || {};
+    const dateIdx   = saved.date   !== undefined ? saved.date   : guessIdx('date');
+    const descIdx   = saved.desc   !== undefined ? saved.desc   : guessIdx('desc');
+    const amtIdx    = saved.amount !== undefined ? saved.amount : guessIdx('amount');
+    const negateChk = saved.negate !== undefined ? saved.negate : false;
+
+    const makeOpts = (sel) => headers.map((h,i)=>`<option value="${i}"${i===sel?' selected':''}>${esc(h)}</option>`).join('');
+
+    body.innerHTML = `
+      <div class="import-hint">Preview of first 3 rows. Map each column, then click Import.</div>
+      <div class="imp-preview">${renderCsvPreview(d.rows.slice(0,3), headers)}</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Date Column</label>
+          <select class="form-select" id="imp-date">${makeOpts(dateIdx)}</select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description Column</label>
+          <select class="form-select" id="imp-desc">${makeOpts(descIdx)}</select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Amount Column</label>
+          <select class="form-select" id="imp-amt">${makeOpts(amtIdx)}</select>
+        </div>
+        <div class="form-group" style="justify-content:flex-end">
+          <label class="form-label">Negate amounts?</label>
+          <label class="imp-check-row"><input type="checkbox" id="imp-negate"${negateChk?' checked':''}/> Flip sign (if expenses are positive)</label>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Save mapping as</label>
+        <input class="form-input" id="imp-profile-name" type="text" placeholder="e.g. Chase Checking" value="${esc(d.profileName||'')}"/>
+      </div>
+      <div class="import-actions">
+        <button class="btn btn-ghost" onclick="backToUpload()">← Back</button>
+        <button class="btn btn-primary" onclick="runImport()">Import Transactions</button>
+      </div>`;
+  }
+
+  if (d.step === 'done') {
+    body.innerHTML = `
+      <div class="import-done">
+        <div class="import-done-icon">✅</div>
+        <div class="import-done-title">${d.imported} transactions imported</div>
+        <div class="import-done-sub">${d.dupes} duplicates skipped</div>
+        <button class="btn btn-primary" onclick="showModal(false);render()">Close</button>
+      </div>`;
+  }
+}
+
+function pickImportPerson(p) {
+  if (S.modal?.data) S.modal.data.importPerson = p;
+  document.querySelectorAll('#modal-body .person-btn').forEach(b => b.classList.toggle('active', b.dataset.person === p));
+}
+
+function renderCsvPreview(rows, headers) {
+  const th = headers.map(h=>`<th>${esc(h)}</th>`).join('');
+  const trs = rows.map(r=>`<tr>${r.map(c=>`<td>${esc(c)}</td>`).join('')}</tr>`).join('');
+  return `<table class="imp-table"><thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table>`;
+}
+
+function loadImportFile() {
+  const file = document.getElementById('imp-file')?.files?.[0];
+  if (!file) { alert('Please choose a CSV file.'); return; }
+  const profileSel = document.getElementById('imp-profile')?.value || '';
+  const reader = new FileReader();
+  reader.onload = e => {
+    const {headers, rows} = parseCSV(e.target.result);
+    if (!headers.length) { alert('Could not parse CSV.'); return; }
+    S.modal.data.headers = headers;
+    S.modal.data.rows = rows;
+    S.modal.data.profileName = profileSel || file.name.replace(/\.csv$/i,'');
+    S.modal.data.step = 'map';
+    renderImportStep();
+  };
+  reader.readAsText(file);
+}
+
+function backToUpload() {
+  S.modal.data.step = 'upload';
+  renderImportStep();
+}
+
+function parseCSV(text) {
+  const lines = text.trim().split(/\r?\n/);
+  if (!lines.length) return {headers:[], rows:[]};
+  const splitLine = line => {
+    const out = [], re = /("(?:[^"]|"")*"|[^,]*),?/g;
+    let m;
+    while ((m = re.exec(line)) !== null) {
+      if (m.index === line.length) break;
+      let v = m[1];
+      if (v.startsWith('"')) v = v.slice(1,-1).replace(/""/g,'"');
+      out.push(v.trim());
+    }
+    return out;
+  };
+  const headers = splitLine(lines[0]);
+  const rows = lines.slice(1).filter(l=>l.trim()).map(splitLine);
+  return {headers, rows};
+}
+
+function txHash(date, amount, desc) {
+  return `${date}|${amount}|${String(desc).toLowerCase().replace(/\s+/g,' ').trim()}`;
+}
+
+function runImport() {
+  const d = S.modal.data;
+  const dateIdx = parseInt(document.getElementById('imp-date').value);
+  const descIdx = parseInt(document.getElementById('imp-desc').value);
+  const amtIdx  = parseInt(document.getElementById('imp-amt').value);
+  const negate  = document.getElementById('imp-negate').checked;
+  const profName = document.getElementById('imp-profile-name').value.trim();
+
+  if (profName) {
+    S.importMappings[profName] = {date: dateIdx, desc: descIdx, amount: amtIdx, negate};
+  }
+
+  const existing = new Set(S.transactions.map(tx => txHash(tx.startDate, tx.amount, tx.name)));
+
+  let imported = 0, dupes = 0;
+  d.rows.forEach(row => {
+    const rawDate = row[dateIdx]||'';
+    const desc    = row[descIdx]||'Imported';
+    let   rawAmt  = parseFloat((row[amtIdx]||'').replace(/[^0-9.\-]/g,''));
+    if (isNaN(rawAmt)) return;
+    if (negate) rawAmt = -rawAmt;
+    const amount = Math.abs(rawAmt);
+    if (amount <= 0) return;
+
+    const date = normalizeDate(rawDate);
+    if (!date) return;
+
+    const hash = txHash(date, amount, desc);
+    if (existing.has(hash)) { dupes++; return; }
+    existing.add(hash);
+
+    const catId = rawAmt < 0 ? 'other' : 'other_income';
+    S.transactions.push({
+      id: uid(), name: desc, amount, categoryId: catId,
+      frequency: 'once', startDate: date, note: '',
+      color: PALETTE[8], person: d.importPerson || 'A',
+      importHash: hash,
+    });
+    imported++;
+  });
+
+  save();
+  d.step = 'done';
+  d.imported = imported;
+  d.dupes = dupes;
+  renderImportStep();
+}
+
+function normalizeDate(s) {
+  s = s.trim();
+  // Try ISO first
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  // MM/DD/YYYY or M/D/YYYY
+  const m1 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m1) return `${m1[3]}-${p2(m1[1])}-${p2(m1[2])}`;
+  // MM-DD-YYYY
+  const m2 = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+  if (m2) return `${m2[3]}-${p2(m2[1])}-${p2(m2[2])}`;
+  // Try Date parse as fallback
+  const dt = new Date(s);
+  if (!isNaN(dt)) return dstr(dt);
+  return null;
 }
 
 // ── Notifications ──────────────────────────────────────────────────────────────
@@ -951,7 +1229,20 @@ function checkNotifications() {
 
 // ── Main render ────────────────────────────────────────────────────────────────
 
+function renderPersonToggle() {
+  const btns = [
+    {p:'all',   label:'All'},
+    {p:'A',     label: S.persons.A},
+    {p:'B',     label: S.persons.B},
+    {p:'joint', label:'Joint'},
+  ];
+  document.getElementById('person-toggle').innerHTML = btns.map(({p, label}) =>
+    `<button class="person-filter-btn${S.activePerson===p?' active':''}" data-p="${p}" onclick="switchPerson('${p}')">${label}</button>`
+  ).join('');
+}
+
 function render() {
+  renderPersonToggle();
   renderMonthStrip();
   renderFilterBar();
   renderSummary();
@@ -973,6 +1264,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('add-goal-btn').addEventListener('click', ()=>openGoalModal());
   document.getElementById('add-debt-btn').addEventListener('click', ()=>openDebtModal());
   document.getElementById('budgets-btn').addEventListener('click', openBudgetModal);
+  document.getElementById('import-btn').addEventListener('click', openImportModal);
 
   document.getElementById('search-input').addEventListener('input', e => {
     S.search = e.target.value.toLowerCase().trim();
