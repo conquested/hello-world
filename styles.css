@@ -522,6 +522,40 @@ body { font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI',
 .budget-form-row { display: grid; grid-template-columns: 140px 1fr; align-items: center; gap: 10px; padding: 3px 0; }
 .budget-cat-label { font-size: 12px; font-weight: 600; }
 
+/* ── Person toggle (topbar filter) ──────────────────── */
+.person-filter-row { display: flex; gap: 3px; }
+.person-filter-btn {
+  padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border);
+  background: transparent; color: var(--muted); font-size: 12px; font-weight: 600;
+  cursor: pointer; white-space: nowrap; transition: all .15s;
+}
+.person-filter-btn:hover { background: var(--surface2); color: var(--text); }
+.person-filter-btn.active { background: var(--surface3); border-color: var(--gold); color: var(--gold); }
+
+/* ── Person toggle (modal form) ──────────────────────── */
+.person-toggle { display: flex; gap: 6px; }
+.person-btn {
+  flex: 1; padding: 8px 10px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--surface2);
+  color: var(--muted); font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all .15s; text-align: center;
+}
+.person-btn:hover { border-color: var(--pc, var(--accent)); color: var(--text); }
+.person-btn.active { background: var(--pc, var(--accent)); border-color: var(--pc, var(--accent)); color: #fff; }
+
+/* ── Import modal ────────────────────────────────────── */
+.import-hint { font-size: 11px; color: var(--muted); margin-bottom: 4px; line-height: 1.5; }
+.import-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.imp-preview { overflow-x: auto; margin-bottom: 4px; }
+.imp-table { border-collapse: collapse; font-size: 11px; min-width: 100%; }
+.imp-table th, .imp-table td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; white-space: nowrap; }
+.imp-table th { background: var(--surface2); color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: .4px; }
+.imp-check-row { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text); margin-top: 6px; }
+.import-done { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 20px 0; text-align: center; }
+.import-done-icon { font-size: 40px; }
+.import-done-title { font-size: 18px; font-weight: 700; }
+.import-done-sub { font-size: 13px; color: var(--muted); }
+
 /* ── Misc ────────────────────────────────────────────── */
 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; height: 200px; color: var(--muted); text-align: center; }
 .empty-icon { font-size: 48px; }
