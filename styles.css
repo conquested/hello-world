@@ -1,14 +1,14 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:       #080e0a;
-  --surface:  #0e160f;
-  --surface2: #162118;
-  --surface3: #1d2e20;
-  --border:   #243629;
-  --text:     #e6f0e8;
-  --muted:    #587060;
-  --accent:   #2D6A4F;
+  --bg:       #0d0f18;
+  --surface:  #13151f;
+  --surface2: #1a1d2e;
+  --surface3: #202338;
+  --border:   #252840;
+  --text:     #e2e8f0;
+  --muted:    #556080;
+  --accent:   #C9A84C;
   --gold:     #C9A84C;
   --income:   #22c55e;
   --expense:  #ef4444;
@@ -24,8 +24,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 
 /* ── Sidebar ─────────────────────────────────────────── */
 .sidebar-nav {
-  background: #060e08;
-  border-right: 1px solid #1B4332;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   padding: 20px 12px;
@@ -38,10 +38,14 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   gap: 10px;
   padding: 0 4px 20px;
 }
-.nav-logo img { width: 36px; height: 36px; flex-shrink: 0; }
-.nav-logo-text { display: flex; flex-direction: column; line-height: 1.1; }
-.nav-logo-text .brand-top { font-size: 14px; font-weight: 800; color: #d4edda; letter-spacing: -0.3px; }
-.nav-logo-text .brand-bot { font-size: 12px; font-weight: 700; color: #C9A84C; letter-spacing: 0.5px; }
+.nav-logo img { width: 38px; height: 38px; flex-shrink: 0; }
+.nav-logo-wordmark {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  color: var(--text);
+}
+.nav-logo-wordmark span { color: var(--gold); }
 
 .nav-links { display: flex; flex-direction: column; gap: 2px; flex: 1; }
 
@@ -54,7 +58,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   border: none;
   border-left: 2px solid transparent;
   background: transparent;
-  color: #587060;
+  color: var(--muted);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -62,10 +66,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   width: 100%;
   transition: background .15s, color .15s, border-color .15s;
 }
-.nav-btn:hover { background: #0e1c10; color: #d4edda; }
-.nav-btn.active { background: #0e1c10; color: #C9A84C; border-left-color: #C9A84C; font-weight: 600; }
+.nav-btn:hover { background: var(--surface2); color: var(--text); }
+.nav-btn.active { background: var(--surface2); color: var(--gold); border-left-color: var(--gold); font-weight: 600; }
 
-.nav-bottom { border-top: 1px solid #1B4332; padding-top: 12px; }
+.nav-bottom { border-top: 1px solid var(--border); padding-top: 12px; }
 
 /* ── Main area ───────────────────────────────────────── */
 .app-main { display: flex; flex-direction: column; overflow: hidden; }
