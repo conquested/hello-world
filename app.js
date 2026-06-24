@@ -358,7 +358,7 @@ function buildTips(income, expenses, cat) {
     if (activeGoals.length > 0) {
       suggestion = `putting <strong>${fmt(bal)}</strong> towards your <strong>${esc(activeGoals[0].name)}</strong> goal`;
     } else {
-      suggestion = `investing your <strong>${fmt(bal)}</strong> surplus`;
+      suggestion = `investing your <strong>${fmt(bal)}</strong> surplus or placing it into a savings account`;
     }
     tips.push({l:'good', t:`Solid! You're saving <strong>${Math.round(rate)}%</strong> of income. Consider ${suggestion}.`});
   }
