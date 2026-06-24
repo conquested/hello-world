@@ -352,7 +352,16 @@ function buildTips(income, expenses, cat) {
 
   if (bal<0) tips.push({l:'remove', t:`You're spending <strong>${fmt(Math.abs(bal))}</strong> more than you earn. Cut expenses immediately.`});
   else if (rate<10) tips.push({l:'reconsider', t:`Savings rate is only <strong>${Math.round(rate)}%</strong>. Aim for 20%+.`});
-  else if (rate>=20) tips.push({l:'good', t:`Solid! You're saving <strong>${Math.round(rate)}%</strong> of income. Consider investing the surplus.`});
+  else if (rate>=20) {
+    const activeGoals = S.goals.filter(g => g.saved < g.target);
+    let suggestion;
+    if (activeGoals.length > 0) {
+      suggestion = `putting <strong>${fmt(bal)}</strong> towards your <strong>${esc(activeGoals[0].name)}</strong> goal`;
+    } else {
+      suggestion = `investing your <strong>${fmt(bal)}</strong> surplus`;
+    }
+    tips.push({l:'good', t:`Solid! You're saving <strong>${Math.round(rate)}%</strong> of income. Consider ${suggestion}.`});
+  }
 
   const needs=['housing','food','transport','health','utilities'];
   const wants=['entertainment','shopping','streaming','subscriptions','fitness'];
@@ -366,7 +375,6 @@ function buildTips(income, expenses, cat) {
 
   if (cat.housing && income>0 && cat.housing/income>.33) tips.push({l:'reconsider',t:`🏠 Housing is <strong>${Math.round(cat.housing/income*100)}%</strong> of income. Consider a roommate or renegotiating rent.`});
   if (cat.food    && income>0 && cat.food/income>.15)    tips.push({l:'replace',   t:`🍔 Food is <strong>${Math.round(cat.food/income*100)}%</strong> of income. Meal prep and cooking at home can cut this significantly.`});
-  if (cat.streaming && cat.subscriptions) tips.push({l:'remove', t:`📺 You have both streaming and subscriptions charged. Audit for overlap — cancel anything you use less than weekly.`});
 
   if (!tips.length) tips.push({l:'good', t:`Budget looks healthy! Keep tracking and look for ways to grow your savings rate.`});
 
