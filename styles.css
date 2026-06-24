@@ -556,6 +556,27 @@ body { font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI',
 .import-done-title { font-size: 18px; font-weight: 700; }
 .import-done-sub { font-size: 13px; color: var(--muted); }
 
+/* ── Vendor table ────────────────────────────────────── */
+.vendor-table { width: 100%; border-collapse: collapse; }
+.vendor-table th { background: var(--surface); padding: 10px 20px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); border-bottom: 1px solid var(--border); position: sticky; top: 0; }
+.vendor-table td { padding: 10px 20px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.vendor-table tr:last-child td { border-bottom: none; }
+.vendor-table tr:hover td { background: var(--surface2); }
+.vendor-table th.sortable { cursor: pointer; user-select: none; }
+.vendor-table th.sortable:hover { color: var(--text); }
+.vendor-table th.sorted { color: var(--gold); }
+.vendor-name { font-weight: 600; }
+.vendor-count { color: var(--muted); font-size: 12px; }
+.vendor-amt { font-weight: 700; }
+.vendor-income { font-size: 11px; margin-left: 4px; }
+.vendor-date { color: var(--muted); font-size: 12px; }
+
+/* ── Custom categories modal ─────────────────────────── */
+.cat-form-row { display: grid; grid-template-columns: 48px 1fr 90px auto; align-items: center; gap: 8px; padding: 3px 0; }
+.cat-icon-input { text-align: center; font-size: 16px; padding: 6px 4px; }
+.cat-name-input { }
+.cat-type-select { }
+
 /* ── Misc ────────────────────────────────────────────── */
 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; height: 200px; color: var(--muted); text-align: center; }
 .empty-icon { font-size: 48px; }

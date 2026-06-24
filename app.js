@@ -56,8 +56,11 @@ const S = {
   goals: [],
   debts: [],
   budgets: {},
+  customCategories: [],
   persons: { A: 'Person A', B: 'Person B' },
   importMappings: {},
+  vendorSearch: '',
+  vendorSort: 'amount',
   modal: null,
 };
 
@@ -66,12 +69,13 @@ const S = {
 function load() {
   try {
     const d = JSON.parse(localStorage.getItem('bb2') || '{}');
-    S.transactions    = d.transactions    || [];
-    S.goals           = d.goals           || [];
-    S.debts           = d.debts           || [];
-    S.budgets         = d.budgets         || {};
-    S.persons         = d.persons         || { A: 'Person A', B: 'Person B' };
-    S.importMappings  = d.importMappings  || {};
+    S.transactions      = d.transactions      || [];
+    S.goals             = d.goals             || [];
+    S.debts             = d.debts             || [];
+    S.budgets           = d.budgets           || {};
+    S.customCategories  = d.customCategories  || [];
+    S.persons           = d.persons           || { A: 'Person A', B: 'Person B' };
+    S.importMappings    = d.importMappings    || {};
     // Migrate: existing transactions default to person A
     S.transactions.forEach(tx => { if (!tx.person) tx.person = 'A'; });
   } catch {}
@@ -80,7 +84,8 @@ function load() {
 function save() {
   localStorage.setItem('bb2', JSON.stringify({
     transactions: S.transactions, goals: S.goals, debts: S.debts,
-    budgets: S.budgets, persons: S.persons, importMappings: S.importMappings,
+    budgets: S.budgets, customCategories: S.customCategories,
+    persons: S.persons, importMappings: S.importMappings,
   }));
 }
 
@@ -102,7 +107,9 @@ function dstr(d) {
 
 function p2(n) { return String(n).padStart(2,'0'); }
 
-function getCat(id) { return CATEGORIES.find(c=>c.id===id) || CATEGORIES[CATEGORIES.length-1]; }
+function cats() { return [...CATEGORIES, ...S.customCategories]; }
+
+function getCat(id) { return cats().find(c=>c.id===id) || CATEGORIES[CATEGORIES.length-1]; }
 
 function textColor(hex) {
   const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
@@ -259,7 +266,7 @@ function renderMonthStrip() {
 function renderFilterBar() {
   const allActive = S.filters.has('all');
   let html = `<button class="filter-chip${allActive?' active':''}" onclick="toggleFilter('all')">All</button>`;
-  CATEGORIES.forEach(c => {
+  cats().forEach(c => {
     const on = !allActive && S.filters.has(c.id);
     html += `<button class="filter-chip${on?' active':''}" onclick="toggleFilter('${c.id}')">${c.icon} ${c.label}</button>`;
   });
@@ -616,7 +623,7 @@ function openTxModal(data={}, editing=false) {
   S.modal.data.selectedColor = selColor;
   if (!S.modal.data.person) S.modal.data.person = S.activePerson === 'all' ? 'A' : (S.activePerson === 'joint' ? 'joint' : S.activePerson);
 
-  const catOpts = CATEGORIES.map(c=>
+  const catOpts = cats().map(c=>
     `<option value="${c.id}" ${c.id===(data.categoryId||'food')?'selected':''}>${c.icon} ${c.label}</option>`
   ).join('');
 
@@ -792,7 +799,7 @@ function openDebtModal(id) {
 function openBudgetModal() {
   S.modal = {type: 'budgets', editing: false, data: {}};
 
-  const rows = CATEGORIES.filter(c => c.type === 'expense').map(c => `
+  const rows = cats().filter(c => c.type === 'expense').map(c => `
     <div class="budget-form-row">
       <div class="budget-cat-label">${c.icon} ${c.label}</div>
       <input class="form-input" id="fb-${c.id}" type="number" min="0" step="1"
@@ -808,7 +815,7 @@ function openBudgetModal() {
 }
 
 function saveBudgets() {
-  CATEGORIES.filter(c => c.type === 'expense').forEach(c => {
+  cats().filter(c => c.type === 'expense').forEach(c => {
     const val = parseFloat(document.getElementById('fb-' + c.id)?.value);
     if (val > 0) S.budgets[c.id] = val;
     else delete S.budgets[c.id];
@@ -825,6 +832,7 @@ function modalSave() {
   else if (t==='goal')        saveGoal();
   else if (t==='debt')        saveDebt();
   else if (t==='budgets')     saveBudgets();
+  else if (t==='categories')  saveCategoryChanges();
   // import handles its own save buttons
 }
 
@@ -950,9 +958,10 @@ function switchView(v) {
   S.view=v;
   document.querySelectorAll('.view').forEach(el=>el.classList.toggle('active', el.id==='view-'+v));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active', b.dataset.view===v));
-  if (v==='goals')  renderGoals();
-  if (v==='debts')  renderDebts();
-  if (v==='trends') renderTrends();
+  if (v==='goals')   renderGoals();
+  if (v==='debts')   renderDebts();
+  if (v==='trends')  renderTrends();
+  if (v==='vendors') renderVendors();
 }
 
 // ── Export ─────────────────────────────────────────────────────────────────────
@@ -1197,6 +1206,154 @@ function normalizeDate(s) {
   return null;
 }
 
+// ── Vendor Tracking ────────────────────────────────────────────────────────────
+
+function extractVendor(name) {
+  let v = String(name).trim();
+  v = v.replace(/^(purchase|pos\s+purchase|pos\s+debit|pos|ach|debit\s+card|checkcard|debit\s+purchase|online\s+transfer|autopay|payment\s+to|payment\s+from|bill\s+pay|zelle(\s+payment)?(\s+to|\s+from)?)\s+/i, '');
+  v = v.replace(/\s+\d{1,2}\/\d{1,2}(\/\d{2,4})?$/, '');
+  v = v.replace(/\s+\d{8}$/, '');
+  v = v.replace(/\s+[#*]\S+/g, '').trim();
+  const words = v.split(/\s+/).slice(0, 3).join(' ');
+  return words.replace(/\b\w/g, c => c.toUpperCase()) || name;
+}
+
+function buildVendorIndex() {
+  const year = new Date().getFullYear();
+  const vendors = {};
+
+  S.transactions.forEach(tx => {
+    if (S.activePerson !== 'all') {
+      if (S.activePerson === 'joint') { if (tx.person !== 'joint') return; }
+      else if (tx.person !== S.activePerson && tx.person !== 'joint') return;
+    }
+    const isExpense = getCat(tx.categoryId).type === 'expense';
+    for (let m = 0; m < 12; m++) {
+      occurrences(tx, year, m).forEach(date => {
+        const vendor = extractVendor(tx.name);
+        if (!vendors[vendor]) vendors[vendor] = {name: vendor, total: 0, income: 0, count: 0, lastDate: ''};
+        if (isExpense) vendors[vendor].total += tx.amount;
+        else           vendors[vendor].income += tx.amount;
+        vendors[vendor].count++;
+        if (!vendors[vendor].lastDate || date > vendors[vendor].lastDate) vendors[vendor].lastDate = date;
+      });
+    }
+  });
+  return vendors;
+}
+
+function renderVendors() {
+  const el = document.getElementById('vendors-content');
+  let items = Object.values(buildVendorIndex());
+
+  const q = S.vendorSearch.toLowerCase().trim();
+  if (q) items = items.filter(v => v.name.toLowerCase().includes(q));
+
+  if (S.vendorSort === 'amount') items.sort((a,b) => b.total - a.total);
+  else if (S.vendorSort === 'name')  items.sort((a,b) => a.name.localeCompare(b.name));
+  else if (S.vendorSort === 'count') items.sort((a,b) => b.count - a.count);
+
+  if (!items.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">🏪</div><div>No vendor data yet. Add transactions or import a CSV to see YTD spending by merchant.</div></div>`;
+    return;
+  }
+
+  const year = new Date().getFullYear();
+  el.innerHTML = `
+    <table class="vendor-table">
+      <thead><tr>
+        <th class="sortable${S.vendorSort==='name'?' sorted':''}" onclick="sortVendors('name')">Vendor ${S.vendorSort==='name'?'▲':''}</th>
+        <th class="sortable${S.vendorSort==='count'?' sorted':''}" onclick="sortVendors('count')"># Txns ${S.vendorSort==='count'?'▼':''}</th>
+        <th class="sortable${S.vendorSort==='amount'?' sorted':''}" onclick="sortVendors('amount')">${year} Spent ${S.vendorSort==='amount'?'▼':''}</th>
+        <th>Last Date</th>
+      </tr></thead>
+      <tbody>${items.map(v => `
+        <tr>
+          <td class="vendor-name">${esc(v.name)}</td>
+          <td class="vendor-count">${v.count}</td>
+          <td class="expense-text vendor-amt">${fmt(v.total)}${v.income>0?` <span class="income-text vendor-income">+${fmt(v.income)}</span>`:''}</td>
+          <td class="vendor-date">${v.lastDate ? new Date(v.lastDate+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '—'}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function sortVendors(col) {
+  S.vendorSort = col;
+  renderVendors();
+}
+
+// ── Custom Categories ───────────────────────────────────────────────────────────
+
+function openCategoryModal() {
+  S.modal = {type: 'categories', editing: false, data: {}};
+  document.getElementById('modal-title').textContent = '⚙️ Custom Categories';
+  document.getElementById('modal-delete-btn').style.display = 'none';
+  document.getElementById('modal-save-btn').style.display = 'inline-flex';
+  document.getElementById('modal-save-btn').textContent = 'Save';
+  renderCategoryModalBody();
+  showModal(true);
+}
+
+function renderCategoryModalBody() {
+  const custom = S.customCategories;
+  document.getElementById('modal-body').innerHTML = `
+    <div class="budget-hint">Add custom spending/income categories. Built-in ones cannot be removed.</div>
+    ${custom.map((c,i) => `
+      <div class="cat-form-row" id="catrow-${i}">
+        <input class="form-input cat-icon-input" id="ci-icon-${i}" value="${esc(c.icon)}" placeholder="🏷️" maxlength="4"/>
+        <input class="form-input cat-name-input" id="ci-label-${i}" value="${esc(c.label)}" placeholder="Category name" maxlength="30"/>
+        <select class="form-select cat-type-select" id="ci-type-${i}">
+          <option value="expense"${c.type==='expense'?' selected':''}>Expense</option>
+          <option value="income"${c.type==='income'?' selected':''}>Income</option>
+        </select>
+        <button class="btn btn-danger btn-sm" onclick="deleteCat(${i})">✕</button>
+      </div>`).join('')}
+    <div class="cat-form-row" id="catrow-new">
+      <input class="form-input cat-icon-input" id="ci-icon-new" placeholder="🏷️" maxlength="4"/>
+      <input class="form-input cat-name-input" id="ci-label-new" placeholder="New category…" maxlength="30"/>
+      <select class="form-select cat-type-select" id="ci-type-new">
+        <option value="expense">Expense</option>
+        <option value="income">Income</option>
+      </select>
+      <button class="btn btn-ghost btn-sm" onclick="addNewCat()">＋ Add</button>
+    </div>`;
+}
+
+function addNewCat() {
+  const icon  = document.getElementById('ci-icon-new')?.value.trim() || '📌';
+  const label = document.getElementById('ci-label-new')?.value.trim();
+  const type  = document.getElementById('ci-type-new')?.value || 'expense';
+  if (!label) return;
+  S.customCategories.push({id: 'c_' + uid(), label, icon, type});
+  save();
+  renderCategoryModalBody();
+}
+
+function deleteCat(i) {
+  const cat = S.customCategories[i];
+  if (cat && S.transactions.some(tx => tx.categoryId === cat.id)) {
+    if (!confirm(`"${cat.label}" is used in some transactions. Delete anyway? Those transactions will show as "Other".`)) return;
+  }
+  S.customCategories.splice(i, 1);
+  save();
+  renderCategoryModalBody();
+}
+
+function saveCategoryChanges() {
+  S.customCategories.forEach((c, i) => {
+    const icon  = document.getElementById(`ci-icon-${i}`)?.value.trim();
+    const label = document.getElementById(`ci-label-${i}`)?.value.trim();
+    const type  = document.getElementById(`ci-type-${i}`)?.value;
+    if (icon)  c.icon  = icon;
+    if (label) c.label = label;
+    if (type)  c.type  = type;
+  });
+  save();
+  showModal(false);
+  render();
+}
+
 // ── Notifications ──────────────────────────────────────────────────────────────
 
 function checkNotifications() {
@@ -1265,6 +1422,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('add-debt-btn').addEventListener('click', ()=>openDebtModal());
   document.getElementById('budgets-btn').addEventListener('click', openBudgetModal);
   document.getElementById('import-btn').addEventListener('click', openImportModal);
+  document.getElementById('categories-btn').addEventListener('click', openCategoryModal);
+
+  document.getElementById('vendor-search').addEventListener('input', e => {
+    S.vendorSearch = e.target.value;
+    renderVendors();
+  });
 
   document.getElementById('search-input').addEventListener('input', e => {
     S.search = e.target.value.toLowerCase().trim();
