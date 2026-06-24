@@ -3,110 +3,133 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Budget Balancer</title>
+  <title>BudgetBalancer</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+<div class="app">
 
-<div class="app-wrapper">
+  <aside class="sidebar-nav">
+    <div class="nav-logo">Budget<span>Balancer</span></div>
+    <nav class="nav-links">
+      <button class="nav-btn active" data-view="calendar">📅 <span>Calendar</span></button>
+      <button class="nav-btn" data-view="goals">🎯 <span>Goals</span></button>
+      <button class="nav-btn" data-view="debts">💳 <span>Debts</span></button>
+      <button class="nav-btn" data-view="trends">📊 <span>Trends</span></button>
+    </nav>
+    <div class="nav-bottom">
+      <button class="nav-btn" id="export-btn">⬇️ <span>Export Data</span></button>
+    </div>
+  </aside>
 
-  <!-- Header -->
-  <header>
-    <div class="logo">Budget<span>Balancer</span></div>
-    <div class="header-right">
-      <button class="btn btn-primary" id="add-btn">+ Add Transaction</button>
-    </div>
-  </header>
+  <div class="app-main">
 
-  <!-- Summary Bar -->
-  <div class="summary-bar">
-    <div class="sum-card">
-      <div class="sum-label">Monthly Income</div>
-      <div class="sum-value income-color" id="sum-income">$0.00</div>
-    </div>
-    <div class="sum-card">
-      <div class="sum-label">Monthly Expenses</div>
-      <div class="sum-value expense-color" id="sum-expenses">$0.00</div>
-    </div>
-    <div class="sum-card">
-      <div class="sum-label">Balance</div>
-      <div class="sum-value positive" id="sum-balance">$0.00</div>
-    </div>
-    <div class="sum-card">
-      <div class="sum-label">Spending Rate</div>
-      <div class="spend-bar-wrap"><div class="bar-fill" id="spend-bar-fill" style="width:0%"></div></div>
-      <div class="spend-rate" id="spend-rate">0% of income spent</div>
-    </div>
-  </div>
-
-  <!-- Main Content -->
-  <div class="main-content">
-
-    <!-- Calendar -->
-    <div class="calendar-section">
-      <div class="cal-nav">
-        <div class="cal-nav-btns">
-          <button class="btn btn-ghost btn-sm" id="prev-month">&#8249;</button>
+    <!-- CALENDAR VIEW -->
+    <div class="view active" id="view-calendar">
+      <div class="cal-topbar">
+        <div class="month-year-nav">
+          <button class="icon-btn" id="prev-month">&#8249;</button>
+          <h1 class="cal-title" id="cal-title"></h1>
+          <button class="icon-btn" id="next-month">&#8250;</button>
           <button class="btn btn-ghost btn-sm" id="today-btn">Today</button>
-          <button class="btn btn-ghost btn-sm" id="next-month">&#8250;</button>
         </div>
-        <h2 id="month-label">Month Year</h2>
-      </div>
-      <div class="calendar-grid" id="calendar-grid"></div>
-    </div>
-
-    <!-- Sidebar -->
-    <div class="sidebar">
-
-      <!-- Transactions -->
-      <div class="panel">
-        <div class="panel-title">Transactions</div>
-        <div class="tx-list-wrap">
-          <div id="tx-list"></div>
+        <div class="topbar-right">
+          <input class="search-input" id="search-input" type="text" placeholder="Search transactions…" />
+          <button class="btn btn-primary" id="add-tx-btn">＋ Add</button>
         </div>
       </div>
 
-      <!-- Analysis -->
-      <div class="panel">
-        <div id="analysis-panel"></div>
+      <div class="month-strip-wrap">
+        <div class="month-strip" id="month-strip"></div>
       </div>
 
+      <div class="filter-bar-wrap">
+        <div class="filter-bar" id="filter-bar"></div>
+      </div>
+
+      <div class="summary-row">
+        <div class="sum-card">
+          <div class="sum-label">Income</div>
+          <div class="sum-val income-text" id="sum-income">$0.00</div>
+        </div>
+        <div class="sum-card">
+          <div class="sum-label">Expenses</div>
+          <div class="sum-val expense-text" id="sum-expenses">$0.00</div>
+        </div>
+        <div class="sum-card">
+          <div class="sum-label">Balance</div>
+          <div class="sum-val" id="sum-balance">$0.00</div>
+        </div>
+        <div class="sum-card">
+          <div class="sum-label">Spending Rate</div>
+          <div class="spend-bar-wrap"><div class="spend-bar-fill" id="spend-bar-fill" style="width:0%"></div></div>
+          <div class="spend-rate-lbl" id="spend-rate-lbl">0% of income</div>
+        </div>
+      </div>
+
+      <div class="cal-content">
+        <div class="cal-panel">
+          <div class="calendar-grid" id="calendar-grid"></div>
+        </div>
+        <div class="right-panel">
+          <div class="panel-box">
+            <div class="panel-title">Upcoming Bills <span class="muted">· next 14 days</span></div>
+            <div id="upcoming-list"></div>
+          </div>
+          <div class="panel-box" id="analysis-panel"></div>
+        </div>
+      </div>
     </div>
+
+    <!-- GOALS VIEW -->
+    <div class="view" id="view-goals">
+      <div class="view-header">
+        <h1>🎯 Savings Goals</h1>
+        <button class="btn btn-primary" id="add-goal-btn">＋ New Goal</button>
+      </div>
+      <div class="view-content" id="goals-content"></div>
+    </div>
+
+    <!-- DEBTS VIEW -->
+    <div class="view" id="view-debts">
+      <div class="view-header">
+        <h1>💳 Debt Tracker</h1>
+        <button class="btn btn-primary" id="add-debt-btn">＋ Add Debt</button>
+      </div>
+      <div class="view-content" id="debts-content"></div>
+    </div>
+
+    <!-- TRENDS VIEW -->
+    <div class="view" id="view-trends">
+      <div class="view-header"><h1>📊 6-Month Trends</h1></div>
+      <div class="view-content">
+        <div class="trends-legend">
+          <span class="legend-dot" style="background:#22c55e"></span> Income &nbsp;
+          <span class="legend-dot" style="background:#ef4444"></span> Expenses
+        </div>
+        <div class="trends-chart" id="trends-chart"></div>
+        <div class="trends-table" id="trends-table"></div>
+      </div>
+    </div>
+
   </div>
-
 </div>
 
-<!-- Add/Edit Transaction Modal -->
+<!-- Universal Modal -->
 <div class="modal-overlay" id="modal-overlay">
   <div class="modal">
     <div class="modal-header">
       <h2 id="modal-title">Add Transaction</h2>
+      <button class="icon-btn" onclick="showModal(false)">✕</button>
     </div>
-    <form class="modal-body" id="modal-form">
-      <div class="form-group">
-        <label class="form-label" for="modal-category">Category</label>
-        <select class="form-select" id="modal-category"></select>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-danger btn-sm" id="modal-delete-btn" style="display:none" onclick="modalDelete()">Delete</button>
+      <div class="modal-footer-right">
+        <button class="btn btn-ghost" onclick="showModal(false)">Cancel</button>
+        <button class="btn btn-primary" id="modal-save-btn" onclick="modalSave()">Save</button>
       </div>
-      <div class="form-group">
-        <label class="form-label" for="modal-amount">Amount ($)</label>
-        <input class="form-input" id="modal-amount" type="number" min="0.01" step="0.01" placeholder="0.00" required />
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="modal-desc">Description (optional)</label>
-        <input class="form-input" id="modal-desc" type="text" placeholder="e.g. Netflix, Whole Foods..." maxlength="80" />
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="modal-date">Date</label>
-        <input class="form-input" id="modal-date" type="date" required />
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-danger btn-sm" id="modal-delete-btn" style="display:none">Delete</button>
-        <div class="right">
-          <button type="button" class="btn btn-ghost" id="modal-cancel">Cancel</button>
-          <button type="submit" class="btn btn-primary">Save</button>
-        </div>
-      </div>
-    </form>
+    </div>
   </div>
 </div>
 
