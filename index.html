@@ -22,8 +22,10 @@
       <button class="nav-btn" data-view="goals">🎯 <span>Goals</span></button>
       <button class="nav-btn" data-view="debts">💳 <span>Debts</span></button>
       <button class="nav-btn" data-view="trends">📊 <span>Trends</span></button>
+      <button class="nav-btn" data-view="vendors">🏪 <span>Vendors</span></button>
     </nav>
     <div class="nav-bottom">
+      <button class="nav-btn" id="categories-btn">⚙️ <span>Categories</span></button>
       <button class="nav-btn" id="export-btn">⬇️ <span>Export Data</span></button>
     </div>
   </aside>
@@ -106,6 +108,17 @@
         <button class="btn btn-primary" id="add-debt-btn">＋ Add Debt</button>
       </div>
       <div class="view-content" id="debts-content"></div>
+    </div>
+
+    <!-- VENDORS VIEW -->
+    <div class="view" id="view-vendors">
+      <div class="view-header">
+        <h1>🏪 Vendor Spending</h1>
+        <input class="search-input" id="vendor-search" type="text" placeholder="Search vendors…" style="width:200px" />
+      </div>
+      <div class="view-content" style="padding:0">
+        <div id="vendors-content"></div>
+      </div>
     </div>
 
     <!-- TRENDS VIEW -->
