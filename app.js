@@ -494,7 +494,11 @@ function renderTrends() {
     data.push({label:SHORT[m],year:y,month:m,inc,exp,bal:inc-exp});
   }
 
+  let cumBal = 0;
+  data.forEach(d => { cumBal += d.bal; d.cumBal = cumBal; });
+
   const maxVal = Math.max(...data.map(d=>Math.max(d.inc,d.exp)),1);
+  const maxCum = Math.max(...data.map(d=>Math.abs(d.cumBal)),1);
 
   document.getElementById('trends-chart').innerHTML = data.map(d=>{
     const iH = Math.round(d.inc/maxVal*180);
@@ -506,18 +510,35 @@ function renderTrends() {
       </div>
       <div class="trend-lbl">${d.label}</div>
       <div class="trend-bal ${d.bal>=0?'positive':'negative'}">${d.bal>=0?'+':''}${fmt(d.bal)}</div>
+      <div class="trend-cum ${d.cumBal>=0?'positive':'negative'}" title="Running balance">${d.cumBal>=0?'+':''}${fmt(d.cumBal)}</div>
     </div>`;
   }).join('');
 
+  const maxCumAbs = Math.max(...data.map(d => Math.abs(d.cumBal)), 1);
+  const runningHtml = data.map(d => {
+    const barH = Math.round(Math.abs(d.cumBal) / maxCumAbs * 60);
+    const cls  = d.cumBal >= 0 ? 'positive' : 'negative';
+    return `<div class="trend-col">
+      <div class="trend-bars" style="height:60px">
+        <div class="trend-bar ${d.cumBal>=0?'income-bar':'expense-bar'}" style="height:${barH}px;width:40px"></div>
+      </div>
+      <div class="trend-lbl">${d.label}</div>
+      <div class="trend-bal ${cls}">${d.cumBal>=0?'+':''}${fmt(d.cumBal)}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('trends-running').innerHTML = runningHtml;
+
   document.getElementById('trends-table').innerHTML = `
     <table>
-      <thead><tr><th>Month</th><th>Income</th><th>Expenses</th><th>Balance</th></tr></thead>
+      <thead><tr><th>Month</th><th>Income</th><th>Expenses</th><th>Net</th><th>Running Balance</th></tr></thead>
       <tbody>${data.map(d=>`
         <tr>
           <td>${d.label} ${d.year}</td>
           <td class="income-text">${fmt(d.inc)}</td>
           <td class="expense-text">${fmt(d.exp)}</td>
           <td class="${d.bal>=0?'positive':'negative'}">${d.bal>=0?'+':''}${fmt(d.bal)}</td>
+          <td class="${d.cumBal>=0?'positive':'negative'}">${d.cumBal>=0?'+':''}${fmt(d.cumBal)}</td>
         </tr>`).join('')}
       </tbody>
     </table>`;
