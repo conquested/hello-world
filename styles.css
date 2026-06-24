@@ -571,6 +571,19 @@ body { font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI',
 .vendor-income { font-size: 11px; margin-left: 4px; }
 .vendor-date { color: var(--muted); font-size: 12px; }
 
+/* ── Income projection ───────────────────────────────── */
+.proj-cards { display: flex; gap: 16px; padding: 12px 24px 24px; flex-wrap: wrap; }
+.proj-card { flex: 1; min-width: 220px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; border-left-width: 3px; }
+.proj-person { font-size: 13px; font-weight: 700; margin-bottom: 10px; }
+.proj-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 12px; }
+.proj-lbl { color: var(--muted); }
+.proj-val { font-weight: 700; }
+.proj-variance { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 8px; }
+.proj-rate { font-size: 10px; color: var(--muted); margin-top: 6px; }
+.proj-empty { font-size: 11px; color: var(--muted); line-height: 1.6; }
+.proj-form-section { }
+.proj-person-lbl { font-size: 13px; font-weight: 700; margin-bottom: 10px; }
+
 /* ── Custom categories modal ─────────────────────────── */
 .cat-form-row { display: grid; grid-template-columns: 48px 1fr 90px auto; align-items: center; gap: 8px; padding: 3px 0; }
 .cat-icon-input { text-align: center; font-size: 16px; padding: 6px 4px; }
