@@ -21,7 +21,9 @@
       "index.html",
       "styles.css",
       "app.js",
-      "main.js"
+      "main.js",
+      "icon.svg",
+      "logo.png"
     ],
     "directories": {
       "output": "dist"
