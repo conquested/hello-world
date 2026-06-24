@@ -2,7 +2,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="948" height="686" viewBox="0 0 948 686" role="img" aria-labelledby="title desc">
   <title id="title">VantagePoint logo traced vector</title>
   <desc id="desc">Vector trace of the supplied VantagePoint VP logo with wordmark and tagline.</desc>
-  <rect width="100%" height="100%" fill="#ffffff"/>
   <path d="
     M 809 650 L 806 652 L 808 655 L 811 653 Z
     M 425 650 L 422 652 L 424 655 L 427 653 Z
@@ -44,5 +43,5 @@
     M 579 240 L 570 253 L 550 287 L 629 287 L 637 289 L 644 293 L 653 303 L 657 313 L 657 327 L 651 340 L 642 349 L 637 352 L 627 355 L 574 355 L 547 401 L 633 401 L 648 398 L 663 392 L 675 384 L 689 370 L 698 355 L 703 341 L 704 330 L 705 329 L 705 309 L 702 294 L 696 280 L 688 268 L 679 259 L 668 251 L 658 246 L 646 242 L 635 241 L 634 240 Z
     M 257 109 L 379 344 L 398 377 L 432 441 L 433 441 L 558 241 L 557 240 L 548 240 L 547 241 L 494 240 L 490 241 L 459 291 L 443 314 L 441 312 L 340 109 Z
     M 673 30 L 572 70 L 591 80 L 595 84 L 538 167 L 501 225 L 566 225 L 571 219 L 575 211 L 639 110 L 641 108 L 643 108 L 655 115 L 667 120 L 672 45 L 673 44 Z
-  " fill="#000000" fill-rule="evenodd"/>
+  " fill="#ffffff" fill-rule="evenodd"/>
 </svg>
