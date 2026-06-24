@@ -7,7 +7,7 @@ function createWindow() {
     height: 820,
     minWidth: 880,
     minHeight: 600,
-    title: 'BudgetBalancer',
+    title: 'VantagePoint',
     backgroundColor: '#0f1117',
     webPreferences: {
       nodeIntegration: false,

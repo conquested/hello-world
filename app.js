@@ -844,7 +844,7 @@ function checkNotifications() {
       if (notified.has(key)) return;
       if (occurrences(tx, d.getFullYear(), d.getMonth()).includes(ds)) {
         const when = offset===0?'today':offset===1?'tomorrow':'in 2 days';
-        new Notification('BudgetBalancer — Bill Due', {body:`${tx.name}: ${fmt(tx.amount)} due ${when}`});
+        new Notification('VantagePoint — Bill Due', {body:`${tx.name}: ${fmt(tx.amount)} due ${when}`});
         fresh.push(key);
       }
     });

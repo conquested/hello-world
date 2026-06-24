@@ -1,7 +1,7 @@
 {
-  "name": "budget-balancer",
+  "name": "vantagepoint",
   "version": "1.0.0",
-  "description": "Personal budget tracking desktop app",
+  "description": "Personal finance and budget tracking desktop app",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -14,8 +14,8 @@
     "electron-builder": "^24.13.3"
   },
   "build": {
-    "appId": "com.budgetbalancer.app",
-    "productName": "BudgetBalancer",
+    "appId": "com.vantagepoint.app",
+    "productName": "VantagePoint",
     "copyright": "Copyright © 2026",
     "files": [
       "index.html",
