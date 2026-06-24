@@ -1,95 +1,66 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
   <defs>
 
-    <!-- Money diagonal crosshatch -->
-    <pattern id="hatch" patternUnits="userSpaceOnUse" width="5" height="5">
-      <line x1="0" y1="5" x2="5" y2="0" stroke="#1A5530" stroke-width="0.8" opacity="0.9"/>
-      <line x1="-1" y1="1" x2="1" y2="-1" stroke="#1A5530" stroke-width="0.8" opacity="0.9"/>
-      <line x1="4" y1="6" x2="6" y2="4" stroke="#1A5530" stroke-width="0.8" opacity="0.9"/>
-    </pattern>
-
-    <!-- V body: light-to-dark green -->
-    <linearGradient id="vGreen" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%"   stop-color="#4CBF74"/>
-      <stop offset="40%"  stop-color="#2B6A44"/>
-      <stop offset="100%" stop-color="#163D26"/>
+    <linearGradient id="armGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#52C878"/>
+      <stop offset="60%"  stop-color="#237A42"/>
+      <stop offset="100%" stop-color="#0F3D20"/>
     </linearGradient>
 
-    <!-- Gold engraving border -->
     <linearGradient id="goldG" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%"   stop-color="#F8EC90"/>
-      <stop offset="35%"  stop-color="#D4A828"/>
-      <stop offset="70%"  stop-color="#A87B18"/>
+      <stop offset="0%"   stop-color="#FFF0A0"/>
+      <stop offset="40%"  stop-color="#D4A828"/>
       <stop offset="100%" stop-color="#7A5808"/>
     </linearGradient>
 
-    <!-- $100 security ribbon: iridescent -->
-    <linearGradient id="irid" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%"   stop-color="#0F4EA0"/>
-      <stop offset="18%"  stop-color="#0090B8"/>
-      <stop offset="36%"  stop-color="#00B890"/>
-      <stop offset="52%"  stop-color="#D4A828"/>
-      <stop offset="68%"  stop-color="#C07828"/>
-      <stop offset="84%"  stop-color="#0090C0"/>
-      <stop offset="100%" stop-color="#1058A8"/>
-    </linearGradient>
-
-    <!-- Clip to solid V polygon (for fills & ribbon) -->
-    <clipPath id="vClip">
-      <path d="M 5,8 L 40,8 L 50,83 L 60,8 L 95,8 L 50,96 Z"/>
-    </clipPath>
-
-    <filter id="shadow" x="-10%" y="-5%" width="135%" height="130%">
-      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000" flood-opacity="0.8"/>
+    <filter id="shadow" x="-15%" y="-10%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000" flood-opacity="0.75"/>
     </filter>
 
-    <filter id="glow" x="-25%" y="-60%" width="150%" height="220%">
-      <feGaussianBlur in="SourceGraphic" stdDeviation="1.8" result="b"/>
-      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    <filter id="bevel" x="-5%" y="-5%" width="115%" height="120%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="1.5" result="blur"/>
+      <feSpecularLighting in="blur" surfaceScale="4" specularConstant="1.2"
+                          specularExponent="12" lighting-color="#ffffff" result="spec">
+        <fePointLight x="30" y="-20" z="80"/>
+      </feSpecularLighting>
+      <feComposite in="spec" in2="SourceAlpha" operator="in" result="specClip"/>
+      <feBlend in="SourceGraphic" in2="specClip" mode="screen"/>
     </filter>
 
   </defs>
 
-  <!-- Drop shadow layer -->
-  <path d="M 5,8 L 40,8 L 50,83 L 60,8 L 95,8 L 50,96 Z"
-        fill="#000" opacity="0.55" transform="translate(2,4)"/>
+  <!-- Shadow layer -->
+  <path d="M 7,5 L 44,5 L 50,95 Z  M 56,5 L 93,5 L 50,95 Z"
+        fill="#000" opacity="0.55" transform="translate(2,5)"/>
 
-  <!-- Outer dark body -->
-  <path d="M 5,8 L 40,8 L 50,83 L 60,8 L 95,8 L 50,96 Z"
-        fill="#080808" filter="url(#shadow)"/>
+  <!-- Left arm -->
+  <path d="M 7,5 L 44,5 L 50,95 Z"
+        fill="url(#armGrad)" filter="url(#shadow)"/>
 
-  <!-- Green fill (inset 4px from outer edge) -->
-  <path d="M 9,12 L 41,12 L 50,81 L 59,12 L 91,12 L 50,93 Z"
-        fill="url(#vGreen)"/>
+  <!-- Right arm -->
+  <path d="M 56,5 L 93,5 L 50,95 Z"
+        fill="url(#armGrad)" filter="url(#shadow)"/>
 
-  <!-- Crosshatch money texture -->
-  <path d="M 9,12 L 41,12 L 50,81 L 59,12 L 91,12 L 50,93 Z"
-        fill="url(#hatch)" opacity="0.6"/>
+  <!-- Gold border — left arm -->
+  <path d="M 7,5 L 44,5 L 50,95 Z"
+        fill="none" stroke="url(#goldG)" stroke-width="2.5" stroke-linejoin="round"/>
 
-  <!-- Gold engraving border stroke -->
-  <path d="M 5,8 L 40,8 L 50,83 L 60,8 L 95,8 L 50,96 Z"
-        fill="none" stroke="url(#goldG)" stroke-width="2.8" stroke-linejoin="round"/>
+  <!-- Gold border — right arm -->
+  <path d="M 56,5 L 93,5 L 50,95 Z"
+        fill="none" stroke="url(#goldG)" stroke-width="2.5" stroke-linejoin="round"/>
 
-  <!-- Inner engraving detail line -->
-  <path d="M 14,17 L 41,17 L 50,78 L 59,17 L 86,17 L 50,90 Z"
-        fill="none" stroke="#D4A82832" stroke-width="0.8" stroke-linejoin="round"/>
+  <!-- Inner bevel highlight — left arm -->
+  <path d="M 10,9 L 40,9 L 49,90 Z"
+        fill="none" stroke="#ffffff" stroke-width="0.8" stroke-linejoin="round" opacity="0.15"/>
 
-  <!-- Top-edge sheen on each arm -->
-  <line x1="10" y1="12" x2="39" y2="12" stroke="#A0F0B8" stroke-width="1.2" opacity="0.22"/>
-  <line x1="61" y1="12" x2="90" y2="12" stroke="#A0F0B8" stroke-width="1.2" opacity="0.22"/>
+  <!-- Inner bevel highlight — right arm -->
+  <path d="M 60,9 L 90,9 L 51,90 Z"
+        fill="none" stroke="#ffffff" stroke-width="0.8" stroke-linejoin="round" opacity="0.15"/>
 
-  <!-- ── Iridescent security ribbon crossing both arms ── -->
-  <g clip-path="url(#vClip)">
-    <!-- Dark backing -->
-    <rect x="0" y="43" width="100" height="10" fill="#000" opacity="0.4"/>
-    <!-- Iridescent colour band -->
-    <rect x="0" y="43" width="100" height="10"
-          fill="url(#irid)" opacity="0.9" filter="url(#glow)"/>
-    <!-- Gold edge lines top + bottom -->
-    <line x1="0" y1="43" x2="100" y2="43" stroke="url(#goldG)" stroke-width="0.7" opacity="0.8"/>
-    <line x1="0" y1="53" x2="100" y2="53" stroke="url(#goldG)" stroke-width="0.7" opacity="0.8"/>
-    <!-- Centre sheen -->
-    <rect x="0" y="44" width="100" height="4" fill="white" opacity="0.06"/>
-  </g>
+  <!-- Top-edge sheen — left arm -->
+  <line x1="9" y1="7" x2="42" y2="7" stroke="#A8F0C0" stroke-width="1.5" opacity="0.3"/>
+
+  <!-- Top-edge sheen — right arm -->
+  <line x1="58" y1="7" x2="91" y2="7" stroke="#A8F0C0" stroke-width="1.5" opacity="0.3"/>
 
 </svg>
