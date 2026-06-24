@@ -61,6 +61,7 @@ const S = {
   importMappings: {},
   vendorSearch: '',
   vendorSort: 'amount',
+  incomeSettings: { A: {hourlyRate: 0, expectedHours: 0}, B: {hourlyRate: 0, expectedHours: 0} },
   modal: null,
 };
 
@@ -76,6 +77,7 @@ function load() {
     S.customCategories  = d.customCategories  || [];
     S.persons           = d.persons           || { A: 'Person A', B: 'Person B' };
     S.importMappings    = d.importMappings    || {};
+    S.incomeSettings    = d.incomeSettings    || { A: {hourlyRate:0, expectedHours:0}, B: {hourlyRate:0, expectedHours:0} };
     // Migrate: existing transactions default to person A
     S.transactions.forEach(tx => { if (!tx.person) tx.person = 'A'; });
   } catch {}
@@ -86,6 +88,7 @@ function save() {
     transactions: S.transactions, goals: S.goals, debts: S.debts,
     budgets: S.budgets, customCategories: S.customCategories,
     persons: S.persons, importMappings: S.importMappings,
+    incomeSettings: S.incomeSettings,
   }));
 }
 
@@ -600,6 +603,62 @@ function renderTrends() {
         </tr>`).join('')}
       </tbody>
     </table>`;
+
+  renderIncomeProjection();
+}
+
+function renderIncomeProjection() {
+  const container = document.getElementById('income-projection');
+  if (!container) return;
+
+  const personsToShow = S.activePerson === 'all'
+    ? PERSONS
+    : PERSONS.filter(p => p.id === S.activePerson);
+
+  if (!personsToShow.length) { container.innerHTML = ''; return; }
+
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+
+  const cards = personsToShow.map(p => {
+    const cfg = S.incomeSettings[p.id] || {hourlyRate: 0, expectedHours: 0};
+    const projected = cfg.hourlyRate * cfg.expectedHours;
+
+    // Actual income this month for this person
+    const evs = monthEvents(year, month).filter(({tx}) =>
+      getCat(tx.categoryId).type === 'income' && (tx.person === p.id || tx.person === 'joint')
+    );
+    const actual = evs.reduce((s,{tx})=>s+tx.amount, 0);
+
+    const variance = actual - projected;
+    const hasProjection = projected > 0;
+
+    return `<div class="proj-card" style="border-left-color:${p.color}">
+      <div class="proj-person">${esc(S.persons[p.id])}</div>
+      ${hasProjection ? `
+        <div class="proj-row">
+          <span class="proj-lbl">Projected (${cfg.expectedHours}h × ${fmt(cfg.hourlyRate)}/hr)</span>
+          <span class="proj-val">${fmt(projected)}</span>
+        </div>
+        <div class="proj-row">
+          <span class="proj-lbl">Actual income this month</span>
+          <span class="proj-val income-text">${fmt(actual)}</span>
+        </div>
+        <div class="proj-row proj-variance">
+          <span class="proj-lbl">Variance</span>
+          <span class="proj-val ${variance>=0?'income-text':'expense-text'}">${variance>=0?'+':''}${fmt(variance)}</span>
+        </div>
+        <div class="proj-rate">
+          ${actual===0&&projected===0?'':'Effective: '+fmt(projected>0?actual/cfg.expectedHours:0)+'/hr'}
+        </div>
+      ` : `<div class="proj-empty">No projection set. Click <strong>📐 Income Projection</strong> to configure.</div>`}
+    </div>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div class="trends-section-label" style="padding-top:16px">Income Projection — ${MONTHS[month]}</div>
+    <div class="proj-cards">${cards}</div>`;
 }
 
 // ── Modal: Transaction ─────────────────────────────────────────────────────────
@@ -833,6 +892,7 @@ function modalSave() {
   else if (t==='debt')        saveDebt();
   else if (t==='budgets')     saveBudgets();
   else if (t==='categories')  saveCategoryChanges();
+  else if (t==='income-proj') saveIncomeProjection();
   // import handles its own save buttons
 }
 
@@ -1283,6 +1343,69 @@ function sortVendors(col) {
   renderVendors();
 }
 
+// ── Income Projection Modal ─────────────────────────────────────────────────────
+
+function openIncomeProjectionModal() {
+  S.modal = {type: 'income-proj', editing: false, data: {}};
+  document.getElementById('modal-title').textContent = '📐 Income Projection';
+  document.getElementById('modal-delete-btn').style.display = 'none';
+  document.getElementById('modal-save-btn').style.display = 'inline-flex';
+  document.getElementById('modal-save-btn').textContent = 'Save';
+
+  const rows = PERSONS.map(p => {
+    const cfg = S.incomeSettings[p.id] || {hourlyRate: 0, expectedHours: 0};
+    return `<div class="proj-form-section" style="border-left:3px solid ${p.color};padding-left:12px;margin-bottom:16px">
+      <div class="proj-person-lbl">${esc(S.persons[p.id])}</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Hourly Rate ($)</label>
+          <input class="form-input" id="ip-rate-${p.id}" type="number" min="0" step="0.01" value="${cfg.hourlyRate||''}" placeholder="e.g. 25.00"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Expected Hours / Month</label>
+          <input class="form-input" id="ip-hours-${p.id}" type="number" min="0" step="0.5" value="${cfg.expectedHours||''}" placeholder="e.g. 160"/>
+        </div>
+      </div>
+      <div class="proj-calc" id="ip-calc-${p.id}"></div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('modal-body').innerHTML = `
+    <div class="budget-hint">Set your expected monthly income. When you import your pay CSV, the actual income reconciles against the projection automatically.</div>
+    ${rows}`;
+
+  // Live calculation preview
+  PERSONS.forEach(p => {
+    ['rate','hours'].forEach(field => {
+      document.getElementById(`ip-${field}-${p.id}`)?.addEventListener('input', () => updateProjCalc(p.id));
+    });
+    updateProjCalc(p.id);
+  });
+
+  showModal(true);
+}
+
+function updateProjCalc(pid) {
+  const rate  = parseFloat(document.getElementById(`ip-rate-${pid}`)?.value) || 0;
+  const hours = parseFloat(document.getElementById(`ip-hours-${pid}`)?.value) || 0;
+  const el    = document.getElementById(`ip-calc-${pid}`);
+  if (!el) return;
+  el.innerHTML = rate && hours
+    ? `<div class="annual-cost">→ ~${fmt(rate * hours)}/month · ~${fmt(rate * hours * 12)}/year</div>`
+    : '';
+}
+
+function saveIncomeProjection() {
+  PERSONS.forEach(p => {
+    const rate  = parseFloat(document.getElementById(`ip-rate-${p.id}`)?.value) || 0;
+    const hours = parseFloat(document.getElementById(`ip-hours-${p.id}`)?.value) || 0;
+    S.incomeSettings[p.id] = {hourlyRate: rate, expectedHours: hours};
+  });
+  save();
+  showModal(false);
+  renderIncomeProjection();
+}
+
 // ── Custom Categories ───────────────────────────────────────────────────────────
 
 function openCategoryModal() {
@@ -1423,6 +1546,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('budgets-btn').addEventListener('click', openBudgetModal);
   document.getElementById('import-btn').addEventListener('click', openImportModal);
   document.getElementById('categories-btn').addEventListener('click', openCategoryModal);
+  document.getElementById('income-proj-btn').addEventListener('click', openIncomeProjectionModal);
 
   document.getElementById('vendor-search').addEventListener('input', e => {
     S.vendorSearch = e.target.value;
