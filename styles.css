@@ -316,10 +316,12 @@ body { font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI',
 .panel-section { margin-bottom: 16px; }
 .analysis-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .7px; color: var(--muted); margin-bottom: 10px; }
 
-.breakdown-row { display: grid; grid-template-columns: 90px 1fr 60px; align-items: center; gap: 8px; margin-bottom: 7px; font-size: 11px; }
+.breakdown-row { display: grid; grid-template-columns: 90px 1fr 68px; align-items: center; gap: 8px; margin-bottom: 7px; font-size: 11px; }
 .breakdown-bar-wrap { height: 5px; background: var(--border); border-radius: 99px; overflow: hidden; }
 .breakdown-bar { height: 100%; border-radius: 99px; transition: width .4s; }
 .breakdown-val { text-align: right; font-weight: 600; }
+.budget-cap { font-size: 9px; color: var(--muted); font-weight: 400; line-height: 1.4; }
+.warn-text { color: var(--warn); }
 
 .tips-list { display: flex; flex-direction: column; gap: 8px; }
 .tip { display: flex; gap: 8px; padding: 10px; border-radius: 8px; border-left: 3px solid transparent; }
@@ -472,6 +474,7 @@ body { font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI',
 .form-textarea { resize: vertical; min-height: 64px; font-family: inherit; }
 
 .annual-cost { font-size: 11px; color: var(--accent); margin-top: 4px; font-weight: 600; }
+.optional-lbl { font-size: 9px; text-transform: lowercase; letter-spacing: 0; color: var(--muted); font-weight: 400; margin-left: 4px; }
 
 /* Color palette */
 .color-palette { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -513,6 +516,11 @@ body { font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI',
   color: var(--muted); transition: background .1s;
 }
 .btn-icon:hover { background: var(--border); }
+
+/* ── Budget modal ────────────────────────────────────── */
+.budget-hint { font-size: 11px; color: var(--muted); margin-bottom: 8px; line-height: 1.5; }
+.budget-form-row { display: grid; grid-template-columns: 140px 1fr; align-items: center; gap: 10px; padding: 3px 0; }
+.budget-cat-label { font-size: 12px; font-weight: 600; }
 
 /* ── Misc ────────────────────────────────────────────── */
 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; height: 200px; color: var(--muted); text-align: center; }
