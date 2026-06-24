@@ -117,12 +117,18 @@ function occurrences(tx, year, month) {
 
     case 'biweekly': {
       const out = [];
-      const diff = Math.floor((mStart - start) / 86400000);
+      // Use UTC day-diff to avoid DST skewing the modulo calculation
+      const utcStart  = Date.UTC(start.getFullYear(),  start.getMonth(),  start.getDate());
+      const utcMStart = Date.UTC(mStart.getFullYear(), mStart.getMonth(), mStart.getDate());
+      const diff = Math.round((utcMStart - utcStart) / 86400000);
       const skip = ((diff % 14) + 14) % 14;
-      let cur = skip===0 ? new Date(mStart) : new Date(mStart.getTime()+(14-skip)*86400000);
+      // Advance using local date components so DST never shifts the weekday
+      let cur = skip === 0
+        ? new Date(mStart.getFullYear(), mStart.getMonth(), mStart.getDate())
+        : new Date(mStart.getFullYear(), mStart.getMonth(), mStart.getDate() + (14 - skip));
       while (cur <= mEnd) {
         if (cur >= start) out.push(dstr(cur));
-        cur = new Date(cur.getTime() + 14*86400000);
+        cur = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + 14);
       }
       return out;
     }
@@ -269,7 +275,7 @@ function renderUpcoming() {
     : S.transactions.filter(tx => S.filters.has(tx.categoryId));
 
   for (let offset=0; offset<=14; offset++) {
-    const d = new Date(today.getTime()+offset*86400000);
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + offset);
     const ds = dstr(d);
     filteredTx.forEach(tx => {
       const key = tx.id+ds;
@@ -865,7 +871,7 @@ function checkNotifications() {
   const fresh    = [];
 
   for (let offset=0; offset<=2; offset++) {
-    const d  = new Date(today.getTime()+offset*86400000);
+    const d  = new Date(today.getFullYear(), today.getMonth(), today.getDate() + offset);
     const ds = dstr(d);
     S.transactions.forEach(tx => {
       if (getCat(tx.categoryId).type!=='expense') return;
