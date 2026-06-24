@@ -264,10 +264,14 @@ function renderUpcoming() {
   const seen  = new Set();
   const items = [];
 
+  const filteredTx = S.filters.has('all')
+    ? S.transactions
+    : S.transactions.filter(tx => S.filters.has(tx.categoryId));
+
   for (let offset=0; offset<=14; offset++) {
     const d = new Date(today.getTime()+offset*86400000);
     const ds = dstr(d);
-    S.transactions.forEach(tx => {
+    filteredTx.forEach(tx => {
       const key = tx.id+ds;
       if (seen.has(key)) return;
       if (occurrences(tx, d.getFullYear(), d.getMonth()).includes(ds)) {
@@ -325,7 +329,16 @@ function renderAnalysis() {
     </div>`;
   }).join('') || '<div class="empty-sm">No expense data.</div>';
 
-  const tips = buildTips(income, expenses, catTotals);
+  // Tips always reflect the full month, not the active filter
+  const fullEvs = monthEvents(S.year, S.month);
+  let fullIncome=0, fullExpenses=0;
+  const fullCatTotals={};
+  fullEvs.forEach(({tx}) => {
+    const cat = getCat(tx.categoryId);
+    if (cat.type==='income') fullIncome+=tx.amount;
+    else { fullExpenses+=tx.amount; fullCatTotals[tx.categoryId]=(fullCatTotals[tx.categoryId]||0)+tx.amount; }
+  });
+  const tips = buildTips(fullIncome, fullExpenses, fullCatTotals);
 
   document.getElementById('analysis-panel').innerHTML = `
     <div class="panel-title">Spending Breakdown</div>
