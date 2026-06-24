@@ -49,6 +49,7 @@ const S = {
   transactions: [],
   goals: [],
   debts: [],
+  budgets: {},
   modal: null,
 };
 
@@ -60,12 +61,13 @@ function load() {
     S.transactions = d.transactions || [];
     S.goals        = d.goals        || [];
     S.debts        = d.debts        || [];
+    S.budgets      = d.budgets      || {};
   } catch {}
 }
 
 function save() {
   localStorage.setItem('bb2', JSON.stringify({
-    transactions: S.transactions, goals: S.goals, debts: S.debts,
+    transactions: S.transactions, goals: S.goals, debts: S.debts, budgets: S.budgets,
   }));
 }
 
@@ -99,8 +101,14 @@ function textColor(hex) {
 function occurrences(tx, year, month) {
   const start  = new Date(tx.startDate + 'T00:00:00');
   const mStart = new Date(year, month, 1);
-  const mEnd   = new Date(year, month+1, 0);
+  let   mEnd   = new Date(year, month+1, 0);
   if (start > mEnd) return [];
+
+  if (tx.endDate) {
+    const endD = new Date(tx.endDate + 'T00:00:00');
+    if (endD < mStart) return [];
+    if (endD < mEnd) mEnd = endD;
+  }
 
   switch (tx.frequency) {
     case 'once':
@@ -325,13 +333,28 @@ function renderAnalysis() {
   const sorted = Object.entries(catTotals).sort((a,b)=>b[1]-a[1]).slice(0,8);
 
   const breakdownHtml = sorted.map(([id,amt]) => {
-    const cat  = getCat(id);
-    const pct  = income>0 ? Math.min(Math.round(amt/income*100),100) : 0;
-    const col  = catColors[id] || PALETTE[8];
+    const cat    = getCat(id);
+    const budget = S.budgets[id];
+    const col    = catColors[id] || PALETTE[8];
+
+    let barPct, barColor, valCls;
+    if (budget) {
+      const bPct = (amt / budget) * 100;
+      barPct   = Math.min(bPct, 100);
+      barColor = bPct >= 90 ? '#ef4444' : bPct >= 70 ? '#f59e0b' : '#22c55e';
+      valCls   = bPct >= 90 ? 'expense-text' : bPct >= 70 ? 'warn-text' : 'income-text';
+    } else {
+      barPct   = income > 0 ? Math.min(Math.round(amt/income*100), 100) : 0;
+      barColor = col;
+      valCls   = '';
+    }
+
+    const capHtml = budget ? `<div class="budget-cap">/ ${fmt(budget)}</div>` : '';
+
     return `<div class="breakdown-row">
       <div>${cat.icon} ${cat.label}</div>
-      <div class="breakdown-bar-wrap"><div class="breakdown-bar" style="width:${pct}%;background:${col}"></div></div>
-      <div class="breakdown-val">${fmt(amt)}</div>
+      <div class="breakdown-bar-wrap"><div class="breakdown-bar" style="width:${barPct}%;background:${barColor}"></div></div>
+      <div class="breakdown-val ${valCls}">${fmt(amt)}${capHtml}</div>
     </div>`;
   }).join('') || '<div class="empty-sm">No expense data.</div>';
 
@@ -591,7 +614,7 @@ function openTxModal(data={}, editing=false) {
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Amount ($)</label>
-        <input class="form-input" id="f-amount" type="number" min="0.01" step="0.01" value="${data.amount||''}" placeholder="0.00" oninput="updateAnnual()" />
+        <input class="form-input" id="f-amount" type="number" min="0.01" step="0.01" value="${data.amount||\'\'}" placeholder="0.00" oninput="updateAnnual()" />
       </div>
       <div class="form-group">
         <label class="form-label">Category</label>
@@ -605,8 +628,12 @@ function openTxModal(data={}, editing=false) {
       </div>
       <div class="form-group">
         <label class="form-label">Start Date</label>
-        <input class="form-input" id="f-date" type="date" value="${data.startDate||''}" />
+        <input class="form-input" id="f-date" type="date" value="${data.startDate||\'\'}" />
       </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">End Date <span class="optional-lbl">optional — stops recurrence</span></label>
+      <input class="form-input" id="f-enddate" type="date" value="${data.endDate||\'\'}" />
     </div>
     <div class="form-group">
       <label class="form-label">Color</label>
@@ -664,7 +691,7 @@ function openGoalModal(id) {
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Target Amount ($)</label>
-        <input class="form-input" id="f-target" type="number" min="1" step="1" value="${g?.target||''}" placeholder="0.00" />
+        <input class="form-input" id="f-target" type="number" min="1" step="1" value="${g?.target||\'\'}" placeholder="0.00" />
       </div>
       <div class="form-group">
         <label class="form-label">Amount Saved ($)</label>
@@ -673,7 +700,7 @@ function openGoalModal(id) {
     </div>
     <div class="form-group">
       <label class="form-label">Target Date</label>
-      <input class="form-input" id="f-date" type="date" value="${g?.targetDate||''}" />
+      <input class="form-input" id="f-date" type="date" value="${g?.targetDate||\'\'}" />
     </div>
     <div class="form-group">
       <label class="form-label">Color</label>
@@ -704,16 +731,16 @@ function openDebtModal(id) {
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Current Balance ($)</label>
-        <input class="form-input" id="f-balance" type="number" min="0" step="0.01" value="${d?.balance||''}" placeholder="0.00" />
+        <input class="form-input" id="f-balance" type="number" min="0" step="0.01" value="${d?.balance||\'\'}" placeholder="0.00" />
       </div>
       <div class="form-group">
         <label class="form-label">Interest Rate (APR %)</label>
-        <input class="form-input" id="f-rate" type="number" min="0" step="0.01" value="${d?.rate||''}" placeholder="e.g. 22.99" />
+        <input class="form-input" id="f-rate" type="number" min="0" step="0.01" value="${d?.rate||\'\'}" placeholder="e.g. 22.99" />
       </div>
     </div>
     <div class="form-group">
       <label class="form-label">Monthly Payment ($)</label>
-      <input class="form-input" id="f-payment" type="number" min="0" step="0.01" value="${d?.payment||''}" placeholder="0.00" />
+      <input class="form-input" id="f-payment" type="number" min="0" step="0.01" value="${d?.payment||\'\'}" placeholder="0.00" />
     </div>
     <div class="form-group">
       <label class="form-label">Color</label>
@@ -724,6 +751,35 @@ function openDebtModal(id) {
   showModal(true);
 }
 
+// ── Modal: Budgets ─────────────────────────────────────────────────────────────
+
+function openBudgetModal() {
+  S.modal = {type: 'budgets', editing: false, data: {}};
+
+  const rows = CATEGORIES.filter(c => c.type === 'expense').map(c => `
+    <div class="budget-form-row">
+      <div class="budget-cat-label">${c.icon} ${c.label}</div>
+      <input class="form-input" id="fb-${c.id}" type="number" min="0" step="1"
+             value="${S.budgets[c.id]||\'\'}" placeholder="No limit" />
+    </div>`).join('');
+
+  document.getElementById('modal-title').textContent = '💰 Monthly Budgets';
+  document.getElementById('modal-body').innerHTML = `
+    <div class="budget-hint">Set monthly spending caps. Leave blank for no limit. Bar colors turn yellow at 70% and red at 90%.</div>
+    ${rows}`;
+  document.getElementById('modal-delete-btn').style.display = 'none';
+  showModal(true);
+}
+
+function saveBudgets() {
+  CATEGORIES.filter(c => c.type === 'expense').forEach(c => {
+    const val = parseFloat(document.getElementById('fb-' + c.id)?.value);
+    if (val > 0) S.budgets[c.id] = val;
+    else delete S.budgets[c.id];
+  });
+  save(); showModal(false); renderAnalysis();
+}
+
 // ── Modal: save / delete ───────────────────────────────────────────────────────
 
 function modalSave() {
@@ -732,6 +788,7 @@ function modalSave() {
   if      (t==='transaction') saveTx();
   else if (t==='goal')        saveGoal();
   else if (t==='debt')        saveDebt();
+  else if (t==='budgets')     saveBudgets();
 }
 
 function modalDelete() {
@@ -743,16 +800,18 @@ function modalDelete() {
 }
 
 function saveTx() {
-  const name   = document.getElementById('f-name')?.value.trim();
-  const amount = parseFloat(document.getElementById('f-amount')?.value);
-  const cat    = document.getElementById('f-cat')?.value;
-  const freq   = document.getElementById('f-freq')?.value;
-  const date   = document.getElementById('f-date')?.value;
-  const note   = document.getElementById('f-note')?.value.trim();
-  const color  = S.modal.data.selectedColor || PALETTE[8];
+  const name    = document.getElementById('f-name')?.value.trim();
+  const amount  = parseFloat(document.getElementById('f-amount')?.value);
+  const cat     = document.getElementById('f-cat')?.value;
+  const freq    = document.getElementById('f-freq')?.value;
+  const date    = document.getElementById('f-date')?.value;
+  const endDate = document.getElementById('f-enddate')?.value;
+  const note    = document.getElementById('f-note')?.value.trim();
+  const color   = S.modal.data.selectedColor || PALETTE[8];
   if (!name||!amount||amount<=0||!date) return;
 
   const obj = {name,amount,categoryId:cat,frequency:freq,startDate:date,note,color};
+  if (endDate) obj.endDate = endDate; else delete obj.endDate;
   if (S.modal.editing && S.modal.data.id) {
     const i = S.transactions.findIndex(t=>t.id===S.modal.data.id);
     if (i>=0) S.transactions[i]={...S.transactions[i],...obj};
@@ -913,6 +972,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('export-btn').addEventListener('click', exportData);
   document.getElementById('add-goal-btn').addEventListener('click', ()=>openGoalModal());
   document.getElementById('add-debt-btn').addEventListener('click', ()=>openDebtModal());
+  document.getElementById('budgets-btn').addEventListener('click', openBudgetModal);
 
   document.getElementById('search-input').addEventListener('input', e => {
     S.search = e.target.value.toLowerCase().trim();
