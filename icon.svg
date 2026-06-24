@@ -1,66 +1,66 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
   <defs>
 
-    <linearGradient id="armGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+    <linearGradient id="g" x1="0%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%"   stop-color="#52C878"/>
-      <stop offset="60%"  stop-color="#237A42"/>
+      <stop offset="50%"  stop-color="#237A42"/>
       <stop offset="100%" stop-color="#0F3D20"/>
     </linearGradient>
 
-    <linearGradient id="goldG" x1="0%" y1="0%" x2="0%" y2="100%">
+    <linearGradient id="gold" x1="0%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%"   stop-color="#FFF0A0"/>
-      <stop offset="40%"  stop-color="#D4A828"/>
+      <stop offset="50%"  stop-color="#D4A828"/>
       <stop offset="100%" stop-color="#7A5808"/>
     </linearGradient>
 
-    <filter id="shadow" x="-15%" y="-10%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000" flood-opacity="0.75"/>
-    </filter>
-
-    <filter id="bevel" x="-5%" y="-5%" width="115%" height="120%">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="1.5" result="blur"/>
-      <feSpecularLighting in="blur" surfaceScale="4" specularConstant="1.2"
-                          specularExponent="12" lighting-color="#ffffff" result="spec">
-        <fePointLight x="30" y="-20" z="80"/>
-      </feSpecularLighting>
-      <feComposite in="spec" in2="SourceAlpha" operator="in" result="specClip"/>
-      <feBlend in="SourceGraphic" in2="specClip" mode="screen"/>
+    <filter id="sh" x="-12%" y="-8%" width="136%" height="136%">
+      <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#000" flood-opacity="0.6"/>
     </filter>
 
   </defs>
 
-  <!-- Shadow layer -->
-  <path d="M 7,5 L 44,5 L 50,95 Z  M 56,5 L 93,5 L 50,95 Z"
-        fill="#000" opacity="0.55" transform="translate(2,5)"/>
+  <!-- ── V LEFT ARM ── bold triangle, same as reference -->
+  <path d="M 5,8 L 38,8 L 50,80 Z"
+        fill="url(#g)" filter="url(#sh)"/>
+  <path d="M 5,8 L 38,8 L 50,80 Z"
+        fill="none" stroke="url(#gold)" stroke-width="2" stroke-linejoin="round"/>
 
-  <!-- Left arm -->
-  <path d="M 7,5 L 44,5 L 50,95 Z"
-        fill="url(#armGrad)" filter="url(#shadow)"/>
+  <!-- ── V RIGHT ARM (full triangle, P rides on top) ── -->
+  <path d="M 62,8 L 95,8 L 50,80 Z"
+        fill="url(#g)"/>
+  <path d="M 62,8 L 95,8 L 50,80 Z"
+        fill="none" stroke="url(#gold)" stroke-width="2" stroke-linejoin="round"/>
 
-  <!-- Right arm -->
-  <path d="M 56,5 L 93,5 L 50,95 Z"
-        fill="url(#armGrad)" filter="url(#shadow)"/>
+  <!-- ── P letterform overlaid on right arm ──
+       Stem x=62→76, bowl radius=18 (diameter=36, y=8→44).
+       evenodd counter punches the bowl's negative space.
+       Same fill as arm so boundary between P and arm is invisible.     -->
+  <path fill-rule="evenodd" d="
+    M 62,8
+    L 76,8
+    A 18,18 0 0,1 76,44
+    L 62,44
+    Z
+    M 76,15
+    A 10,10 0 0,1 76,37
+    Z
+  " fill="url(#g)"/>
+  <!-- Gold border on the P bowl arc only -->
+  <path d="M 76,8 A 18,18 0 0,1 76,44"
+        fill="none" stroke="url(#gold)" stroke-width="1.6" stroke-linecap="round"/>
 
-  <!-- Gold border — left arm -->
-  <path d="M 7,5 L 44,5 L 50,95 Z"
-        fill="none" stroke="url(#goldG)" stroke-width="2.5" stroke-linejoin="round"/>
-
-  <!-- Gold border — right arm -->
-  <path d="M 56,5 L 93,5 L 50,95 Z"
-        fill="none" stroke="url(#goldG)" stroke-width="2.5" stroke-linejoin="round"/>
-
-  <!-- Inner bevel highlight — left arm -->
-  <path d="M 10,9 L 40,9 L 49,90 Z"
-        fill="none" stroke="#ffffff" stroke-width="0.8" stroke-linejoin="round" opacity="0.15"/>
-
-  <!-- Inner bevel highlight — right arm -->
-  <path d="M 60,9 L 90,9 L 51,90 Z"
-        fill="none" stroke="#ffffff" stroke-width="0.8" stroke-linejoin="round" opacity="0.15"/>
-
-  <!-- Top-edge sheen — left arm -->
-  <line x1="9" y1="7" x2="42" y2="7" stroke="#A8F0C0" stroke-width="1.5" opacity="0.3"/>
-
-  <!-- Top-edge sheen — right arm -->
-  <line x1="58" y1="7" x2="91" y2="7" stroke="#A8F0C0" stroke-width="1.5" opacity="0.3"/>
+  <!-- ── ARROW: trends up-right through the P bowl ──
+       Shaft: from inside bowl lower area diagonally to upper-right.
+       Arrowhead: solid triangle at tip.                               -->
+  <!-- Shaft -->
+  <line x1="70" y1="39" x2="91" y2="6"
+        stroke="url(#g)" stroke-width="5.5" stroke-linecap="round"/>
+  <!-- Gold outline on shaft -->
+  <line x1="70" y1="39" x2="91" y2="6"
+        stroke="url(#gold)" stroke-width="1" stroke-linecap="round" opacity="0.6"/>
+  <!-- Arrowhead triangle — tip at (95,1) -->
+  <polygon points="95,1 86,14 93,17" fill="url(#g)"/>
+  <polygon points="95,1 86,14 93,17"
+           fill="none" stroke="url(#gold)" stroke-width="1" stroke-linejoin="round" opacity="0.6"/>
 
 </svg>
