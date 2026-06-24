@@ -117,12 +117,18 @@ function occurrences(tx, year, month) {
 
     case 'biweekly': {
       const out = [];
-      const diff = Math.floor((mStart - start) / 86400000);
+      // Use UTC day-diff to avoid DST skewing the modulo calculation
+      const utcStart  = Date.UTC(start.getFullYear(),  start.getMonth(),  start.getDate());
+      const utcMStart = Date.UTC(mStart.getFullYear(), mStart.getMonth(), mStart.getDate());
+      const diff = Math.round((utcMStart - utcStart) / 86400000);
       const skip = ((diff % 14) + 14) % 14;
-      let cur = skip===0 ? new Date(mStart) : new Date(mStart.getTime()+(14-skip)*86400000);
+      // Advance using local date components so DST never shifts the weekday
+      let cur = skip === 0
+        ? new Date(mStart.getFullYear(), mStart.getMonth(), mStart.getDate())
+        : new Date(mStart.getFullYear(), mStart.getMonth(), mStart.getDate() + (14 - skip));
       while (cur <= mEnd) {
         if (cur >= start) out.push(dstr(cur));
-        cur = new Date(cur.getTime() + 14*86400000);
+        cur = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + 14);
       }
       return out;
     }
@@ -269,7 +275,7 @@ function renderUpcoming() {
     : S.transactions.filter(tx => S.filters.has(tx.categoryId));
 
   for (let offset=0; offset<=14; offset++) {
-    const d = new Date(today.getTime()+offset*86400000);
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + offset);
     const ds = dstr(d);
     filteredTx.forEach(tx => {
       const key = tx.id+ds;
@@ -352,7 +358,16 @@ function buildTips(income, expenses, cat) {
 
   if (bal<0) tips.push({l:'remove', t:`You're spending <strong>${fmt(Math.abs(bal))}</strong> more than you earn. Cut expenses immediately.`});
   else if (rate<10) tips.push({l:'reconsider', t:`Savings rate is only <strong>${Math.round(rate)}%</strong>. Aim for 20%+.`});
-  else if (rate>=20) tips.push({l:'good', t:`Solid! You're saving <strong>${Math.round(rate)}%</strong> of income. Consider investing the surplus.`});
+  else if (rate>=20) {
+    const activeGoals = S.goals.filter(g => g.saved < g.target);
+    let suggestion;
+    if (activeGoals.length > 0) {
+      suggestion = `putting <strong>${fmt(bal)}</strong> towards your <strong>${esc(activeGoals[0].name)}</strong> goal`;
+    } else {
+      suggestion = `investing your <strong>${fmt(bal)}</strong> surplus or placing it into a savings account`;
+    }
+    tips.push({l:'good', t:`Solid! You're saving <strong>${Math.round(rate)}%</strong> of income. Consider ${suggestion}.`});
+  }
 
   const needs=['housing','food','transport','health','utilities'];
   const wants=['entertainment','shopping','streaming','subscriptions','fitness'];
@@ -366,7 +381,6 @@ function buildTips(income, expenses, cat) {
 
   if (cat.housing && income>0 && cat.housing/income>.33) tips.push({l:'reconsider',t:`🏠 Housing is <strong>${Math.round(cat.housing/income*100)}%</strong> of income. Consider a roommate or renegotiating rent.`});
   if (cat.food    && income>0 && cat.food/income>.15)    tips.push({l:'replace',   t:`🍔 Food is <strong>${Math.round(cat.food/income*100)}%</strong> of income. Meal prep and cooking at home can cut this significantly.`});
-  if (cat.streaming && cat.subscriptions) tips.push({l:'remove', t:`📺 You have both streaming and subscriptions charged. Audit for overlap — cancel anything you use less than weekly.`});
 
   if (!tips.length) tips.push({l:'good', t:`Budget looks healthy! Keep tracking and look for ways to grow your savings rate.`});
 
@@ -486,7 +500,11 @@ function renderTrends() {
     data.push({label:SHORT[m],year:y,month:m,inc,exp,bal:inc-exp});
   }
 
+  let cumBal = 0;
+  data.forEach(d => { cumBal += d.bal; d.cumBal = cumBal; });
+
   const maxVal = Math.max(...data.map(d=>Math.max(d.inc,d.exp)),1);
+  const maxCum = Math.max(...data.map(d=>Math.abs(d.cumBal)),1);
 
   document.getElementById('trends-chart').innerHTML = data.map(d=>{
     const iH = Math.round(d.inc/maxVal*180);
@@ -498,18 +516,35 @@ function renderTrends() {
       </div>
       <div class="trend-lbl">${d.label}</div>
       <div class="trend-bal ${d.bal>=0?'positive':'negative'}">${d.bal>=0?'+':''}${fmt(d.bal)}</div>
+      <div class="trend-cum ${d.cumBal>=0?'positive':'negative'}" title="Running balance">${d.cumBal>=0?'+':''}${fmt(d.cumBal)}</div>
     </div>`;
   }).join('');
 
+  const maxCumAbs = Math.max(...data.map(d => Math.abs(d.cumBal)), 1);
+  const runningHtml = data.map(d => {
+    const barH = Math.round(Math.abs(d.cumBal) / maxCumAbs * 60);
+    const cls  = d.cumBal >= 0 ? 'positive' : 'negative';
+    return `<div class="trend-col">
+      <div class="trend-bars" style="height:60px">
+        <div class="trend-bar ${d.cumBal>=0?'income-bar':'expense-bar'}" style="height:${barH}px;width:40px"></div>
+      </div>
+      <div class="trend-lbl">${d.label}</div>
+      <div class="trend-bal ${cls}">${d.cumBal>=0?'+':''}${fmt(d.cumBal)}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('trends-running').innerHTML = runningHtml;
+
   document.getElementById('trends-table').innerHTML = `
     <table>
-      <thead><tr><th>Month</th><th>Income</th><th>Expenses</th><th>Balance</th></tr></thead>
+      <thead><tr><th>Month</th><th>Income</th><th>Expenses</th><th>Net</th><th>Running Balance</th></tr></thead>
       <tbody>${data.map(d=>`
         <tr>
           <td>${d.label} ${d.year}</td>
           <td class="income-text">${fmt(d.inc)}</td>
           <td class="expense-text">${fmt(d.exp)}</td>
           <td class="${d.bal>=0?'positive':'negative'}">${d.bal>=0?'+':''}${fmt(d.bal)}</td>
+          <td class="${d.cumBal>=0?'positive':'negative'}">${d.cumBal>=0?'+':''}${fmt(d.cumBal)}</td>
         </tr>`).join('')}
       </tbody>
     </table>`;
@@ -836,7 +871,7 @@ function checkNotifications() {
   const fresh    = [];
 
   for (let offset=0; offset<=2; offset++) {
-    const d  = new Date(today.getTime()+offset*86400000);
+    const d  = new Date(today.getFullYear(), today.getMonth(), today.getDate() + offset);
     const ds = dstr(d);
     S.transactions.forEach(tx => {
       if (getCat(tx.categoryId).type!=='expense') return;
