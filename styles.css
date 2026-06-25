@@ -653,3 +653,14 @@ body { font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI',
   .cal-content { flex-direction: column; }
   .right-panel { min-width: 0; }
 }
+
+/* ── Vendor Rules Panel (import modal) ───────────────── */
+.vendor-rules-panel { margin: 14px 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.vendor-rules-title { padding: 8px 14px; background: var(--surface2); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.vendor-rules-list { max-height: 220px; overflow-y: auto; }
+.vendor-rule-row { display: flex; align-items: center; gap: 10px; padding: 6px 14px; border-bottom: 1px solid var(--border); }
+.vendor-rule-row:last-child { border-bottom: none; }
+.vendor-rule-row.vendor-rule-new { background: rgba(59,130,246,.05); }
+.vendor-rule-name { flex: 1; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vendor-rule-badge { display: inline-block; background: var(--primary); color: #fff; font-size: 9px; padding: 1px 5px; border-radius: 3px; text-transform: uppercase; font-weight: 700; vertical-align: middle; margin-left: 4px; }
+.vendor-rule-row .form-select { width: 160px; flex-shrink: 0; font-size: 12px; padding: 4px 8px; }
