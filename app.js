@@ -1338,27 +1338,48 @@ async function extractPDFLines(file) {
     const page = await pdf.getPage(p);
     const content = await page.getTextContent();
 
-    // Group text items by Y coordinate (5pt tolerance handles baseline variation)
-    const byY = new Map();
-    for (const item of content.items) {
-      const y = Math.round(item.transform[5] / 5) * 5;
-      if (!byY.has(y)) byY.set(y, []);
-      byY.get(y).push({ x: item.transform[4], str: item.str });
+    // Collect non-empty items with position + advance width
+    const items = content.items
+      .filter(i => i.str && i.str.trim())
+      .map(i => ({ x: i.transform[4], y: i.transform[5], str: i.str, w: i.width || 0 }));
+    if (!items.length) continue;
+
+    // Sort top-to-bottom, then left-to-right
+    items.sort((a, b) => b.y - a.y || a.x - b.x);
+
+    // Group by Y proximity (6pt window) — avoids rounding artifacts
+    const groups = [];
+    for (const item of items) {
+      const last = groups[groups.length - 1];
+      if (last && Math.abs(item.y - last[0].y) <= 6) {
+        last.push(item);
+      } else {
+        groups.push([item]);
+      }
     }
 
-    [...byY.keys()].sort((a, b) => b - a).forEach(y => {
-      const text = byY.get(y)
-        .sort((a, b) => a.x - b.x)
-        .map(i => i.str)
-        .join(' ')
+    for (const group of groups) {
+      group.sort((a, b) => a.x - b.x);
+
+      // Smart space insertion: use advance width to detect real gaps vs tight chars
+      let text = group[0].str;
+      for (let i = 1; i < group.length; i++) {
+        const prev = group[i - 1];
+        const curr = group[i];
+        const charW = prev.w > 0 ? prev.w / Math.max(1, prev.str.length) : 6;
+        const prevEnd = prev.x + (prev.w > 0 ? prev.w : prev.str.length * charW);
+        const gap = curr.x - prevEnd;
+        text += (gap > charW * 0.4 ? ' ' : '') + curr.str;
+      }
+
+      text = text
         .replace(/\s{3,}/g, '  ')
-        // PDF.js often extracts the trailing "-" on debit amounts as a separate item
         .replace(/([\d,]+\.\d{2})\s+-/g, '$1-')
-        // Handle "5.00- SC" → "5.00-SC" (service charge with gap)
         .replace(/([\d,]+\.\d{2})-\s+(SC)/gi, '$1-$2')
         .trim();
+
       if (text) lines.push(text);
-    });
+    }
   }
   return lines;
 }
