@@ -1880,6 +1880,7 @@ function importJSON(input) {
       const d = JSON.parse(e.target.result);
       if (!d.transactions) { alert('Invalid backup file.'); return; }
       if (!confirm(`This will replace all current data. Import ${d.transactions.length} transactions?`)) return;
+      d.lastModified = Date.now();
       localStorage.setItem('bb2', JSON.stringify(d));
       load();
       render();
@@ -2190,15 +2191,13 @@ async function syncFromGoogle(force = false) {
       SYNC.fileId = f.id;
       localStorage.setItem('sync_fid', SYNC.fileId);
     }
-    const metaRes  = await driveReq(`https://www.googleapis.com/drive/v3/files/${SYNC.fileId}?fields=modifiedTime`);
-    const meta     = await metaRes.json();
-    const cloudMs  = new Date(meta.modifiedTime).getTime();
     const localRaw = JSON.parse(localStorage.getItem('bb2') || '{}');
     const localMs  = localRaw.lastModified || 0;
-    if (!force && cloudMs <= localMs + 2000) { await syncToGoogle(); return; }
     const dataRes  = await driveReq(`https://www.googleapis.com/drive/v3/files/${SYNC.fileId}?alt=media`);
     const cloud    = await dataRes.json();
     if (!cloud.transactions) { await syncToGoogle(); return; }
+    const cloudMs  = cloud.lastModified || 0;
+    if (!force && cloudMs <= localMs + 2000) { await syncToGoogle(); return; }
     localStorage.setItem('bb2', JSON.stringify(cloud));
     load();
     render();
