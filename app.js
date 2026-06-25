@@ -38,6 +38,17 @@ const MONTHS = ['January','February','March','April','May','June',
                 'July','August','September','October','November','December'];
 const SHORT  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
+const BANK_PRESETS = {
+  'Chase':            { date:'Transaction Date', desc:'Description', amt:'Amount',  negate:false },
+  'Bank of America':  { date:'Date',             desc:'Description', amt:'Amount',  negate:false },
+  'Wells Fargo':      { date:'Date',             desc:'Description', amt:'Amount',  negate:true  },
+  'Capital One':      { date:'Transaction Date', desc:'Description', debit:'Debit', credit:'Credit' },
+  'Citi':             { date:'Date',             desc:'Description', debit:'Debit', credit:'Credit' },
+  'American Express': { date:'Date',             desc:'Description', amt:'Amount',  negate:true  },
+  'Discover':         { date:'Trans. Date',      desc:'Description', amt:'Amount',  negate:true  },
+  'US Bank':          { date:'Date',             desc:'Name',        amt:'Amount',  negate:false },
+};
+
 // ── State ──────────────────────────────────────────────────────────────────────
 
 const PERSONS = [
@@ -75,6 +86,7 @@ const S = {
   vendorSort: 'amount',
   vendorRules: {},
   incomeSettings: { A: {hourlyRate: 0, expectedHours: 0}, B: {hourlyRate: 0, expectedHours: 0} },
+  paidBills: {},
   modal: null,
 };
 
@@ -92,6 +104,7 @@ function load() {
     S.importMappings    = d.importMappings    || {};
     S.vendorRules       = d.vendorRules       || {};
     S.incomeSettings    = d.incomeSettings    || { A: {hourlyRate:0, expectedHours:0}, B: {hourlyRate:0, expectedHours:0} };
+    S.paidBills         = d.paidBills         || {};
     // Migrate: existing transactions default to person A
     S.transactions.forEach(tx => { if (!tx.person) tx.person = 'A'; });
   } catch {}
@@ -103,7 +116,7 @@ function save() {
     budgets: S.budgets, customCategories: S.customCategories,
     persons: S.persons, importMappings: S.importMappings,
     vendorRules: S.vendorRules, incomeSettings: S.incomeSettings,
-    lastModified: Date.now(),
+    paidBills: S.paidBills, lastModified: Date.now(),
   }));
   scheduleSyncToGoogle();
 }
@@ -330,37 +343,78 @@ function renderUpcoming() {
     return true;
   });
 
-  for (let offset=0; offset<=14; offset++) {
+  for (let offset = 0; offset <= 30; offset++) {
     const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + offset);
     const ds = dstr(d);
     filteredTx.forEach(tx => {
-      const key = tx.id+ds;
+      const key = tx.id + ds;
       if (seen.has(key)) return;
       if (occurrences(tx, d.getFullYear(), d.getMonth()).includes(ds)) {
         seen.add(key);
-        items.push({date:ds, tx, offset});
+        items.push({date: ds, tx, offset});
       }
     });
   }
 
   const el = document.getElementById('upcoming-list');
-  if (!items.length) { el.innerHTML='<div class="empty-sm">No bills in the next 14 days.</div>'; return; }
+  if (!items.length) { el.innerHTML = '<div class="empty-sm">No bills in the next 30 days.</div>'; return; }
 
-  el.innerHTML = items.map(({date, tx, offset}) => {
-    const cat     = getCat(tx.categoryId);
-    const col     = tx.color || PALETTE[8];
-    const when    = offset===0?'Today':offset===1?'Tomorrow':`In ${offset}d`;
-    const dateStr = new Date(date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
-    const sign    = cat.type==='income';
-    return `<div class="upcoming-item" onclick="editTx('${tx.id}')">
-      <div class="upcoming-color" style="background:${col}"></div>
-      <div class="upcoming-info">
-        <div class="upcoming-name">${esc(tx.name)}</div>
-        <div class="upcoming-meta">${dateStr} · ${when}</div>
-      </div>
-      <div class="upcoming-amt ${sign?'income-text':'expense-text'}">${sign?'+':'-'}${fmt(tx.amount)}</div>
-    </div>`;
-  }).join('');
+  const totalDue = items.reduce((s, {tx}) => getCat(tx.categoryId).type === 'expense' ? s + tx.amount : s, 0);
+
+  const groups = [
+    {label: 'Today',     items: items.filter(i => i.offset === 0)},
+    {label: 'Tomorrow',  items: items.filter(i => i.offset === 1)},
+    {label: 'This Week', items: items.filter(i => i.offset >= 2 && i.offset <= 6)},
+    {label: 'Next Week', items: items.filter(i => i.offset >= 7 && i.offset <= 13)},
+    {label: 'Later',     items: items.filter(i => i.offset >= 14)},
+  ].filter(g => g.items.length);
+
+  el.innerHTML = `
+    <div class="upcoming-total-row">
+      <span style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px">Due in 30 days</span>
+      <span class="expense-text" style="font-weight:700;font-size:12px">${fmt(totalDue)}</span>
+    </div>
+    ${groups.map(g => `
+      <div class="upcoming-group-lbl">${g.label}</div>
+      ${g.items.map(({date, tx}) => {
+        const cat  = getCat(tx.categoryId);
+        const col  = tx.color || PALETTE[8];
+        const ds   = new Date(date + 'T00:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric'});
+        const sign = cat.type === 'income';
+        const paid = (S.paidBills[tx.id] || []).includes(date);
+        return `<div class="upcoming-item${paid ? ' upcoming-paid' : ''}" onclick="editTx('${tx.id}')">
+          <div class="upcoming-color" style="background:${col}"></div>
+          <div class="upcoming-info">
+            <div class="upcoming-name">${esc(tx.name)}</div>
+            <div class="upcoming-meta">${ds}</div>
+          </div>
+          <div class="upcoming-amt ${sign ? 'income-text' : 'expense-text'}">${sign ? '+' : '-'}${fmt(tx.amount)}</div>
+          <button class="upcoming-check-btn${paid ? ' paid' : ''}" onclick="event.stopPropagation();togglePaidBill('${tx.id}','${date}')" title="${paid ? 'Mark unpaid' : 'Mark paid'}">✓</button>
+        </div>`;
+      }).join('')}`).join('')}`;
+}
+
+function togglePaidBill(txId, date) {
+  if (!S.paidBills[txId]) S.paidBills[txId] = [];
+  const arr = S.paidBills[txId];
+  const idx = arr.indexOf(date);
+  if (idx >= 0) arr.splice(idx, 1); else arr.push(date);
+  save();
+  renderUpcoming();
+}
+
+function buildDonutSVG(segments, size = 84, sw = 14) {
+  const total = segments.reduce((s, sg) => s + sg.v, 0);
+  if (!total) return `<svg width="${size}" height="${size}"><circle cx="${size/2}" cy="${size/2}" r="${(size-sw)/2}" fill="none" stroke="var(--border)" stroke-width="${sw}"/></svg>`;
+  const r = (size - sw) / 2, circ = 2 * Math.PI * r;
+  let off = 0;
+  const arcs = segments.map(sg => {
+    const pct  = sg.v / total;
+    const arc  = `<circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${sg.c}" stroke-width="${sw}" stroke-dasharray="${(pct*circ).toFixed(2)} ${circ.toFixed(2)}" stroke-dashoffset="${(-off*circ).toFixed(2)}" transform="rotate(-90 ${size/2} ${size/2})"/>`;
+    off += pct;
+    return arc;
+  });
+  return `<svg width="${size}" height="${size}" style="display:block">${arcs.join('')}</svg>`;
 }
 
 function renderAnalysis() {
@@ -379,6 +433,21 @@ function renderAnalysis() {
   });
 
   const sorted = Object.entries(catTotals).sort((a,b)=>b[1]-a[1]).slice(0,8);
+
+  // Donut chart from top 6 categories
+  const donutSegs = sorted.slice(0,6).map(([id,v]) => ({v, c: catColors[id] || PALETTE[8]}));
+  const donutHtml = sorted.length ? `
+    <div class="donut-row">
+      <div class="donut-chart">${buildDonutSVG(donutSegs)}</div>
+      <div class="donut-legend">${sorted.slice(0,6).map(([id,amt])=>{
+        const cat=getCat(id), pct=expenses>0?Math.round(amt/expenses*100):0;
+        return `<div class="donut-legend-item">
+          <span class="donut-legend-dot" style="background:${catColors[id]||PALETTE[8]}"></span>
+          <span class="donut-legend-lbl">${cat.icon} ${cat.label}</span>
+          <span class="donut-legend-pct">${pct}%</span>
+        </div>`;
+      }).join('')}</div>
+    </div>` : '';
 
   const breakdownHtml = sorted.map(([id,amt]) => {
     const cat    = getCat(id);
@@ -406,6 +475,28 @@ function renderAnalysis() {
     </div>`;
   }).join('') || '<div class="empty-sm">No expense data.</div>';
 
+  // Budget overview: show unspent budgets too
+  const budgetedCats = Object.keys(S.budgets);
+  const unspentBudgets = budgetedCats
+    .filter(id => !catTotals[id])
+    .map(id => {
+      const cat = getCat(id);
+      return `<div class="breakdown-row">
+        <div>${cat.icon} ${cat.label}</div>
+        <div class="breakdown-bar-wrap"><div class="breakdown-bar" style="width:0%;background:#22c55e"></div></div>
+        <div class="breakdown-val income-text">${fmt(0)}<div class="budget-cap">/ ${fmt(S.budgets[id])}</div></div>
+      </div>`;
+    }).join('');
+
+  const totalBudgeted = budgetedCats.reduce((s,id) => s + (S.budgets[id]||0), 0);
+  const totalSpentBudgeted = budgetedCats.reduce((s,id) => s + (catTotals[id]||0), 0);
+  const budgetSummaryHtml = totalBudgeted > 0 ? `
+    <div class="budget-summary-row">
+      <span>${fmt(totalSpentBudgeted)} spent</span>
+      <span class="budget-summary-bar-wrap"><span class="budget-summary-bar" style="width:${Math.min(totalSpentBudgeted/totalBudgeted*100,100).toFixed(1)}%;background:${totalSpentBudgeted/totalBudgeted>=.9?'#ef4444':totalSpentBudgeted/totalBudgeted>=.7?'#f59e0b':'#22c55e'}"></span></span>
+      <span style="color:var(--muted)">${fmt(totalBudgeted)} budgeted</span>
+    </div>` : '';
+
   // Tips always reflect the full month, not the active filter
   const fullEvs = monthEvents(S.year, S.month);
   let fullIncome=0, fullExpenses=0;
@@ -419,7 +510,9 @@ function renderAnalysis() {
 
   document.getElementById('analysis-panel').innerHTML = `
     <div class="panel-title">Spending Breakdown</div>
-    <div class="panel-section">${breakdownHtml}</div>
+    ${donutHtml}
+    ${budgetSummaryHtml}
+    <div class="panel-section">${breakdownHtml}${unspentBudgets}</div>
     <div class="panel-title" style="margin-top:8px">Recommendations</div>
     <div class="tips-list">${tips}</div>`;
 }
@@ -1059,8 +1152,35 @@ function toggleSidebar() {
 
 function exportData() {
   const blob = new Blob([JSON.stringify({transactions:S.transactions,goals:S.goals,debts:S.debts},null,2)], {type:'application/json'});
-  const a    = Object.assign(document.createElement('a'), {href:URL.createObjectURL(blob), download:`budget-${new Date().toISOString().slice(0,10)}.json`});
+  const a    = Object.assign(document.createElement('a'), {href:URL.createObjectURL(blob), download:`vantagepoint-${new Date().toISOString().slice(0,10)}.json`});
   a.click(); URL.revokeObjectURL(a.href);
+}
+
+function exportCSV() {
+  const headers = ['Date','Description','Amount','Type','Category','Person','Frequency','Note'];
+  const rows = S.transactions.map(tx => {
+    const cat = getCat(tx.categoryId);
+    return [
+      tx.startDate,
+      tx.name,
+      tx.amount,
+      cat.type,
+      cat.label,
+      S.persons[tx.person] || tx.person || 'A',
+      tx.frequency,
+      tx.note || '',
+    ];
+  });
+  const csv = [headers, ...rows]
+    .map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))
+    .join('\n');
+  const blob = new Blob([csv], {type: 'text/csv'});
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(blob),
+    download: `vantagepoint-${new Date().toISOString().slice(0,10)}.csv`,
+  });
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 // ── CSV Import ─────────────────────────────────────────────────────────────────
@@ -1112,12 +1232,16 @@ function renderImportStep() {
 
   if (d.step === 'map') {
     const headers = d.headers;
-    const opts = headers.map((h,i)=>`<option value="${i}" ${''} >${esc(h)}</option>`).join('');
+    const norm = h => h.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const hn = new Set(headers.map(norm));
+
     const guess = col => {
       const n = col.toLowerCase();
       if (/date/.test(n)) return 'date';
       if (/desc|memo|narr|name|payee/.test(n)) return 'desc';
-      if (/amount|amt|debit|credit/.test(n)) return 'amount';
+      if (/amount|amt/.test(n)) return 'amount';
+      if (/debit/.test(n)) return 'debit';
+      if (/credit/.test(n)) return 'credit';
       return '';
     };
     const guessIdx = (type) => {
@@ -1125,35 +1249,72 @@ function renderImportStep() {
       return idx >= 0 ? idx : 0;
     };
 
-    const saved = S.importMappings[d.profileName] || {};
-    const dateIdx   = saved.date   !== undefined ? saved.date   : guessIdx('date');
-    const descIdx   = saved.desc   !== undefined ? saved.desc   : guessIdx('desc');
-    const amtIdx    = saved.amount !== undefined ? saved.amount : guessIdx('amount');
-    const negateChk = saved.negate !== undefined ? saved.negate : false;
+    // Auto-detect bank from headers
+    let detectedBank = '';
+    for (const [bank, p] of Object.entries(BANK_PRESETS)) {
+      const needed = [p.date, p.desc, p.amt || p.debit].filter(Boolean);
+      if (needed.every(col => hn.has(norm(col)))) { detectedBank = bank; break; }
+    }
+
+    const saved    = S.importMappings[d.profileName] || {};
+    const isSplit  = saved.splitAmt !== undefined ? saved.splitAmt : (detectedBank && !BANK_PRESETS[detectedBank]?.amt);
+    const dateIdx  = saved.date   !== undefined ? saved.date   : guessIdx('date');
+    const descIdx  = saved.desc   !== undefined ? saved.desc   : guessIdx('desc');
+    const amtIdx   = saved.amount !== undefined ? saved.amount : guessIdx('amount');
+    const debitIdx = saved.debit  !== undefined ? saved.debit  : guessIdx('debit');
+    const creditIdx= saved.credit !== undefined ? saved.credit : guessIdx('credit');
+    const negateChk= saved.negate !== undefined ? saved.negate : false;
 
     const makeOpts = (sel) => headers.map((h,i)=>`<option value="${i}"${i===sel?' selected':''}>${esc(h)}</option>`).join('');
 
     body.innerHTML = `
-      <div class="import-hint">Preview of first 3 rows. Map each column, then click Import.</div>
+      <div class="import-hint">Preview of first 3 rows. Select your bank or map columns manually.</div>
       <div class="imp-preview">${renderCsvPreview(d.rows.slice(0,3), headers)}</div>
       <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Bank Preset <span class="optional-lbl">auto-detected</span></label>
+          <select class="form-select" id="imp-bank" onchange="applyBankPreset()">
+            <option value="">— Manual mapping —</option>
+            ${Object.keys(BANK_PRESETS).map(b=>`<option value="${esc(b)}"${b===detectedBank?' selected':''}>${esc(b)}</option>`).join('')}
+          </select>
+        </div>
         <div class="form-group">
           <label class="form-label">Date Column</label>
           <select class="form-select" id="imp-date">${makeOpts(dateIdx)}</select>
         </div>
+      </div>
+      <div class="form-row">
         <div class="form-group">
           <label class="form-label">Description Column</label>
           <select class="form-select" id="imp-desc">${makeOpts(descIdx)}</select>
         </div>
-      </div>
-      <div class="form-row">
         <div class="form-group">
-          <label class="form-label">Amount Column</label>
-          <select class="form-select" id="imp-amt">${makeOpts(amtIdx)}</select>
+          <label class="form-label">Amount Mode</label>
+          <label class="imp-check-row" style="margin-top:8px"><input type="checkbox" id="imp-split-amt"${isSplit?' checked':''} onchange="toggleSplitAmt()"/> Separate Debit / Credit columns</label>
         </div>
-        <div class="form-group" style="justify-content:flex-end">
-          <label class="form-label">Negate amounts?</label>
-          <label class="imp-check-row"><input type="checkbox" id="imp-negate"${negateChk?' checked':''}/> Flip sign (if expenses are positive)</label>
+      </div>
+      <div id="imp-amt-single" style="display:${isSplit?'none':'block'}">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Amount Column</label>
+            <select class="form-select" id="imp-amt">${makeOpts(amtIdx)}</select>
+          </div>
+          <div class="form-group" style="justify-content:flex-end">
+            <label class="form-label">Negate amounts?</label>
+            <label class="imp-check-row"><input type="checkbox" id="imp-negate"${negateChk?' checked':''}/> Flip sign (if expenses are positive)</label>
+          </div>
+        </div>
+      </div>
+      <div id="imp-amt-split" style="display:${isSplit?'block':'none'}">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Debit Column <span class="optional-lbl">(expense)</span></label>
+            <select class="form-select" id="imp-debit">${makeOpts(debitIdx)}</select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Credit Column <span class="optional-lbl">(income)</span></label>
+            <select class="form-select" id="imp-credit">${makeOpts(creditIdx)}</select>
+          </div>
         </div>
       </div>
       <div class="form-group">
@@ -1200,6 +1361,37 @@ function renderImportStep() {
         <button class="btn btn-primary" onclick="showModal(false);render()">Close</button>
       </div>`;
   }
+}
+
+function toggleSplitAmt() {
+  const split = document.getElementById('imp-split-amt')?.checked;
+  const single = document.getElementById('imp-amt-single');
+  const splitEl = document.getElementById('imp-amt-split');
+  if (single) single.style.display = split ? 'none' : 'block';
+  if (splitEl) splitEl.style.display = split ? 'block' : 'none';
+}
+
+function applyBankPreset() {
+  const bank = document.getElementById('imp-bank')?.value;
+  if (!bank || !BANK_PRESETS[bank]) return;
+  const p = BANK_PRESETS[bank];
+  const headers = S.modal.data.headers;
+  const norm = h => h.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const findIdx = name => {
+    if (!name) return -1;
+    const n = norm(name);
+    const i = headers.findIndex(h => norm(h) === n);
+    return i >= 0 ? i : headers.findIndex(h => norm(h).includes(n.slice(0, Math.min(n.length, 5))));
+  };
+  const setEl = (id, idx) => { if (idx >= 0) { const el = document.getElementById(id); if (el) el.value = idx; } };
+  setEl('imp-date', findIdx(p.date));
+  setEl('imp-desc', findIdx(p.desc));
+  const isSplit = !p.amt;
+  const splitChk = document.getElementById('imp-split-amt');
+  if (splitChk) { splitChk.checked = isSplit; toggleSplitAmt(); }
+  if (p.amt)    { setEl('imp-amt', findIdx(p.amt)); const neg = document.getElementById('imp-negate'); if (neg) neg.checked = p.negate; }
+  if (p.debit)  setEl('imp-debit',  findIdx(p.debit));
+  if (p.credit) setEl('imp-credit', findIdx(p.credit));
 }
 
 function pickImportPerson(p) {
@@ -1264,26 +1456,39 @@ function txHash(date, amount, desc) {
 
 function runImport() {
   saveVendorRulesFromForm();
-  const d = S.modal.data;
+  const d       = S.modal.data;
   const dateIdx = parseInt(document.getElementById('imp-date').value);
   const descIdx = parseInt(document.getElementById('imp-desc').value);
-  const amtIdx  = parseInt(document.getElementById('imp-amt').value);
-  const negate  = document.getElementById('imp-negate').checked;
+  const isSplit = document.getElementById('imp-split-amt')?.checked;
+  const amtIdx  = isSplit ? -1 : parseInt(document.getElementById('imp-amt')?.value ?? 0);
+  const debitIdx = isSplit ? parseInt(document.getElementById('imp-debit')?.value ?? 0) : -1;
+  const creditIdx= isSplit ? parseInt(document.getElementById('imp-credit')?.value ?? 0) : -1;
+  const negate  = !isSplit && (document.getElementById('imp-negate')?.checked ?? false);
   const profName = document.getElementById('imp-profile-name').value.trim();
 
   if (profName) {
-    S.importMappings[profName] = {date: dateIdx, desc: descIdx, amount: amtIdx, negate};
+    S.importMappings[profName] = {date: dateIdx, desc: descIdx, amount: amtIdx, debit: debitIdx, credit: creditIdx, negate, splitAmt: isSplit};
   }
 
   const existing = new Set(S.transactions.map(tx => txHash(tx.startDate, tx.amount, tx.name)));
 
   let imported = 0, dupes = 0;
   d.rows.forEach(row => {
-    const rawDate = row[dateIdx]||'';
-    const desc    = row[descIdx]||'Imported';
-    let   rawAmt  = parseFloat((row[amtIdx]||'').replace(/[^0-9.\-]/g,''));
-    if (isNaN(rawAmt)) return;
-    if (negate) rawAmt = -rawAmt;
+    const rawDate = row[dateIdx] || '';
+    const desc    = row[descIdx] || 'Imported';
+    let rawAmt;
+
+    if (isSplit) {
+      const debit  = parseFloat((row[debitIdx]  || '').replace(/[^0-9.]/g, '')) || 0;
+      const credit = parseFloat((row[creditIdx] || '').replace(/[^0-9.]/g, '')) || 0;
+      if (!debit && !credit) return;
+      rawAmt = debit > 0 ? debit : -credit; // debit=expense(+), credit=income(-)
+    } else {
+      rawAmt = parseFloat((row[amtIdx] || '').replace(/[^0-9.\-]/g, ''));
+      if (isNaN(rawAmt)) return;
+      if (negate) rawAmt = -rawAmt;
+    }
+
     const amount = Math.abs(rawAmt);
     if (amount <= 0) return;
 
@@ -1295,7 +1500,7 @@ function runImport() {
     existing.add(hash);
 
     const vendor = extractVendor(desc);
-    const catId = S.vendorRules[vendor] || (rawAmt < 0 ? 'other' : 'other_income');
+    const catId  = S.vendorRules[vendor] || (rawAmt < 0 ? 'other' : 'other_income');
     S.transactions.push({
       id: uid(), name: desc, amount, categoryId: catId,
       frequency: 'once', startDate: date, note: '',
@@ -1813,7 +2018,10 @@ function renderSettings() {
         <div class="settings-item-title">Export Data</div>
         <div class="settings-item-desc">Download all your data as a JSON backup</div>
       </div>
-      <button class="btn btn-ghost btn-sm" onclick="exportData()">⬇️ Export JSON</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" onclick="exportData()">⬇️ JSON Backup</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportCSV()">⬇️ CSV Export</button>
+      </div>
     </div>
     <div class="settings-data-row danger-row">
       <div class="settings-item-info">
