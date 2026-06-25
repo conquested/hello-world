@@ -11,6 +11,7 @@
 <body>
 <div class="app">
 
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
   <aside class="sidebar-nav">
     <div class="nav-logo">
       <img src="icon.svg" alt="VantagePoint" />
@@ -23,9 +24,10 @@
       <button class="nav-btn" data-view="debts">💳 <span>Debts</span></button>
       <button class="nav-btn" data-view="trends">📊 <span>Trends</span></button>
       <button class="nav-btn" data-view="vendors">🏪 <span>Vendors</span></button>
+      <button class="nav-btn" data-view="joint">👥 <span>Joint</span></button>
     </nav>
     <div class="nav-bottom">
-      <button class="nav-btn" id="categories-btn">⚙️ <span>Categories</span></button>
+      <button class="nav-btn" data-view="settings">⚙️ <span>Settings</span></button>
       <button class="nav-btn" id="export-btn">⬇️ <span>Export Data</span></button>
     </div>
   </aside>
@@ -36,6 +38,7 @@
     <div class="view active" id="view-calendar">
       <div class="cal-topbar">
         <div class="month-year-nav">
+          <button class="hamburger-btn" onclick="toggleSidebar()">☰</button>
           <button class="icon-btn" id="prev-month">&#8249;</button>
           <h1 class="cal-title" id="cal-title"></h1>
           <button class="icon-btn" id="next-month">&#8250;</button>
@@ -118,6 +121,37 @@
       </div>
       <div class="view-content" style="padding:0">
         <div id="vendors-content"></div>
+      </div>
+    </div>
+
+    <!-- JOINT VIEW -->
+    <div class="view" id="view-joint">
+      <div class="view-header">
+        <h1>👥 Joint Report</h1>
+      </div>
+      <div class="view-content" style="padding:0">
+        <div id="joint-content"></div>
+      </div>
+    </div>
+
+    <!-- SETTINGS VIEW -->
+    <div class="view" id="view-settings">
+      <div class="view-header">
+        <h1>⚙️ Settings</h1>
+      </div>
+      <div class="view-content">
+        <div class="settings-section">
+          <div class="settings-section-title">People</div>
+          <div id="settings-persons"></div>
+        </div>
+        <div class="settings-section">
+          <div class="settings-section-title">Custom Categories</div>
+          <div id="settings-cats"></div>
+        </div>
+        <div class="settings-section">
+          <div class="settings-section-title">Data Management</div>
+          <div id="settings-data"></div>
+        </div>
       </div>
     </div>
 

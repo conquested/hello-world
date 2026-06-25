@@ -61,6 +61,7 @@ const S = {
   importMappings: {},
   vendorSearch: '',
   vendorSort: 'amount',
+  vendorRules: {},
   incomeSettings: { A: {hourlyRate: 0, expectedHours: 0}, B: {hourlyRate: 0, expectedHours: 0} },
   modal: null,
 };
@@ -77,6 +78,7 @@ function load() {
     S.customCategories  = d.customCategories  || [];
     S.persons           = d.persons           || { A: 'Person A', B: 'Person B' };
     S.importMappings    = d.importMappings    || {};
+    S.vendorRules       = d.vendorRules       || {};
     S.incomeSettings    = d.incomeSettings    || { A: {hourlyRate:0, expectedHours:0}, B: {hourlyRate:0, expectedHours:0} };
     // Migrate: existing transactions default to person A
     S.transactions.forEach(tx => { if (!tx.person) tx.person = 'A'; });
@@ -88,7 +90,7 @@ function save() {
     transactions: S.transactions, goals: S.goals, debts: S.debts,
     budgets: S.budgets, customCategories: S.customCategories,
     persons: S.persons, importMappings: S.importMappings,
-    incomeSettings: S.incomeSettings,
+    vendorRules: S.vendorRules, incomeSettings: S.incomeSettings,
   }));
 }
 
@@ -1018,10 +1020,19 @@ function switchView(v) {
   S.view=v;
   document.querySelectorAll('.view').forEach(el=>el.classList.toggle('active', el.id==='view-'+v));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active', b.dataset.view===v));
-  if (v==='goals')   renderGoals();
-  if (v==='debts')   renderDebts();
-  if (v==='trends')  renderTrends();
-  if (v==='vendors') renderVendors();
+  if (v==='goals')    renderGoals();
+  if (v==='debts')    renderDebts();
+  if (v==='trends')   renderTrends();
+  if (v==='vendors')  renderVendors();
+  if (v==='joint')    renderJointReport();
+  if (v==='settings') renderSettings();
+}
+
+function toggleSidebar() {
+  const nav = document.querySelector('.sidebar-nav');
+  const overlay = document.getElementById('sidebar-overlay');
+  const open = nav.classList.toggle('open');
+  overlay.classList.toggle('visible', open);
 }
 
 // ── Export ─────────────────────────────────────────────────────────────────────
@@ -1233,7 +1244,8 @@ function runImport() {
     if (existing.has(hash)) { dupes++; return; }
     existing.add(hash);
 
-    const catId = rawAmt < 0 ? 'other' : 'other_income';
+    const vendor = extractVendor(desc);
+    const catId = S.vendorRules[vendor] || (rawAmt < 0 ? 'other' : 'other_income');
     S.transactions.push({
       id: uid(), name: desc, amount, categoryId: catId,
       frequency: 'once', startDate: date, note: '',
@@ -1319,13 +1331,18 @@ function renderVendors() {
   }
 
   const year = new Date().getFullYear();
+  const catOptsFor = (vendor) => cats().map(c =>
+    `<option value="${c.id}"${(S.vendorRules[vendor]||'') === c.id ? ' selected' : ''}>${c.icon} ${c.label}</option>`
+  ).join('');
+
   el.innerHTML = `
     <table class="vendor-table">
       <thead><tr>
-        <th class="sortable${S.vendorSort==='name'?' sorted':''}" onclick="sortVendors('name')">Vendor ${S.vendorSort==='name'?'▲':''}</th>
-        <th class="sortable${S.vendorSort==='count'?' sorted':''}" onclick="sortVendors('count')"># Txns ${S.vendorSort==='count'?'▼':''}</th>
-        <th class="sortable${S.vendorSort==='amount'?' sorted':''}" onclick="sortVendors('amount')">${year} Spent ${S.vendorSort==='amount'?'▼':''}</th>
+        <th class="sortable${S.vendorSort==='name'?' sorted':''}" onclick="sortVendors('name')">Vendor</th>
+        <th class="sortable${S.vendorSort==='count'?' sorted':''}" onclick="sortVendors('count')"># Txns</th>
+        <th class="sortable${S.vendorSort==='amount'?' sorted':''}" onclick="sortVendors('amount')">${year} Spent</th>
         <th>Last Date</th>
+        <th>Auto-Category</th>
       </tr></thead>
       <tbody>${items.map(v => `
         <tr>
@@ -1333,6 +1350,9 @@ function renderVendors() {
           <td class="vendor-count">${v.count}</td>
           <td class="expense-text vendor-amt">${fmt(v.total)}${v.income>0?` <span class="income-text vendor-income">+${fmt(v.income)}</span>`:''}</td>
           <td class="vendor-date">${v.lastDate ? new Date(v.lastDate+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '—'}</td>
+          <td><select class="vendor-cat-select" onchange="setVendorRule('${esc(v.name)}',this.value)">
+            <option value="">— none —</option>${catOptsFor(v.name)}
+          </select></td>
         </tr>`).join('')}
       </tbody>
     </table>`;
@@ -1341,6 +1361,218 @@ function renderVendors() {
 function sortVendors(col) {
   S.vendorSort = col;
   renderVendors();
+}
+
+function setVendorRule(vendor, catId) {
+  if (catId) S.vendorRules[vendor] = catId;
+  else delete S.vendorRules[vendor];
+  // Apply retroactively to all matching transactions
+  S.transactions.forEach(tx => {
+    if (extractVendor(tx.name) === vendor && catId) tx.categoryId = catId;
+  });
+  save();
+  renderVendors();
+}
+
+// ── Joint Report ───────────────────────────────────────────────────────────────
+
+function renderJointReport() {
+  const evs = monthEvents(S.year, S.month);
+  const slots = {A:{income:0,exp:0,cats:{}}, B:{income:0,exp:0,cats:{}}, joint:{income:0,exp:0,cats:{}}};
+
+  evs.forEach(({tx}) => {
+    const pid = (tx.person === 'joint' ? 'joint' : tx.person) || 'A';
+    const slot = slots[pid] || slots.joint;
+    const cat  = getCat(tx.categoryId);
+    if (cat.type === 'income') slot.income += tx.amount;
+    else {
+      slot.exp += tx.amount;
+      slot.cats[tx.categoryId] = (slot.cats[tx.categoryId]||0) + tx.amount;
+    }
+  });
+
+  const combined = {
+    income: slots.A.income + slots.B.income + slots.joint.income,
+    exp: slots.A.exp + slots.B.exp + slots.joint.exp,
+  };
+  combined.bal = combined.income - combined.exp;
+
+  const card = (pid, label, col) => {
+    const s = slots[pid];
+    const bal = s.income - s.exp;
+    return `<div class="joint-card" style="border-top:3px solid ${col}">
+      <div class="joint-card-title">${label}</div>
+      <div class="joint-stat"><span class="joint-lbl">Income</span><span class="income-text joint-val">${fmt(s.income)}</span></div>
+      <div class="joint-stat"><span class="joint-lbl">Expenses</span><span class="expense-text joint-val">${fmt(s.exp)}</span></div>
+      <div class="joint-stat joint-bal-row"><span class="joint-lbl">Balance</span><span class="${bal>=0?'positive':'negative'} joint-val">${bal>=0?'+':''}${fmt(bal)}</span></div>
+    </div>`;
+  };
+
+  // Top-N categories across everyone
+  const allCats = {};
+  ['A','B','joint'].forEach(pid => {
+    Object.entries(slots[pid].cats).forEach(([cid,amt]) => {
+      allCats[cid] = (allCats[cid]||0) + amt;
+    });
+  });
+  const topCats = Object.entries(allCats).sort((a,b)=>b[1]-a[1]).slice(0,8);
+
+  const breakdownRows = topCats.map(([cid]) => {
+    const cat   = getCat(cid);
+    const aAmt  = slots.A.cats[cid]    || 0;
+    const bAmt  = slots.B.cats[cid]    || 0;
+    const jAmt  = slots.joint.cats[cid]|| 0;
+    const total = aAmt + bAmt + jAmt;
+    const maxAmt = Math.max(combined.exp, 1);
+    return `<tr>
+      <td>${cat.icon} ${cat.label}</td>
+      <td class="expense-text">${aAmt>0?fmt(aAmt):'—'}</td>
+      <td class="expense-text">${bAmt>0?fmt(bAmt):'—'}</td>
+      <td class="expense-text">${jAmt>0?fmt(jAmt):'—'}</td>
+      <td>
+        <div class="joint-bar-wrap">
+          <div class="joint-bar" style="width:${Math.round(total/maxAmt*100)}%"></div>
+        </div>
+      </td>
+      <td class="expense-text">${fmt(total)}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('joint-content').innerHTML = `
+    <div class="joint-month-label">${MONTHS[S.month]} ${S.year}</div>
+    <div class="joint-cards">
+      ${card('A',    S.persons.A,  PERSONS[0].color)}
+      ${card('B',    S.persons.B,  PERSONS[1].color)}
+      ${card('joint','Joint',      '#22c55e')}
+      <div class="joint-card combined-card">
+        <div class="joint-card-title">Combined</div>
+        <div class="joint-stat"><span class="joint-lbl">Total Income</span><span class="income-text joint-val">${fmt(combined.income)}</span></div>
+        <div class="joint-stat"><span class="joint-lbl">Total Expenses</span><span class="expense-text joint-val">${fmt(combined.exp)}</span></div>
+        <div class="joint-stat joint-bal-row"><span class="joint-lbl">Net</span><span class="${combined.bal>=0?'positive':'negative'} joint-val">${combined.bal>=0?'+':''}${fmt(combined.bal)}</span></div>
+        <div class="joint-stat"><span class="joint-lbl">Savings Rate</span><span class="joint-val">${combined.income>0?Math.round((combined.bal/combined.income)*100):0}%</span></div>
+      </div>
+    </div>
+    ${topCats.length ? `
+      <div class="joint-breakdown-title">Expense Breakdown</div>
+      <div class="joint-breakdown-wrap">
+        <table class="joint-breakdown-table">
+          <thead><tr><th>Category</th><th>${esc(S.persons.A)}</th><th>${esc(S.persons.B)}</th><th>Joint</th><th></th><th>Total</th></tr></thead>
+          <tbody>${breakdownRows}</tbody>
+        </table>
+      </div>` : ''}`;
+}
+
+// ── Settings ────────────────────────────────────────────────────────────────────
+
+function renderSettings() {
+  // Person names
+  document.getElementById('settings-persons').innerHTML =
+    PERSONS.map(p => `
+      <div class="settings-field-row">
+        <label class="form-label" style="min-width:80px">Person ${p.id}</label>
+        <input class="form-input" id="sp-name-${p.id}" value="${esc(S.persons[p.id])}" maxlength="30" placeholder="Person ${p.id}" style="max-width:200px"/>
+        <div class="person-color-dot" style="background:${p.color}"></div>
+      </div>`).join('') +
+    `<button class="btn btn-primary btn-sm" onclick="savePersonNames()" style="margin-top:10px">Save Names</button>`;
+
+  // Categories (inline, same logic as modal)
+  renderSettingsCategories();
+
+  // Data management
+  document.getElementById('settings-data').innerHTML = `
+    <div class="settings-data-row">
+      <div class="settings-item-info">
+        <div class="settings-item-title">Import Backup</div>
+        <div class="settings-item-desc">Restore from a previously exported JSON file</div>
+      </div>
+      <input type="file" id="sd-json-file" accept=".json" style="display:none" onchange="importJSON(this)"/>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('sd-json-file').click()">📂 Import JSON</button>
+    </div>
+    <div class="settings-data-row">
+      <div class="settings-item-info">
+        <div class="settings-item-title">Export Data</div>
+        <div class="settings-item-desc">Download all your data as a JSON backup</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="exportData()">⬇️ Export JSON</button>
+    </div>
+    <div class="settings-data-row danger-row">
+      <div class="settings-item-info">
+        <div class="settings-item-title">Clear All Data</div>
+        <div class="settings-item-desc">Permanently delete all transactions, goals, debts, and settings</div>
+      </div>
+      <button class="btn btn-danger btn-sm" onclick="clearAllData()">🗑️ Clear Everything</button>
+    </div>`;
+}
+
+function renderSettingsCategories() {
+  const custom = S.customCategories;
+  document.getElementById('settings-cats').innerHTML =
+    custom.map((c,i) => `
+      <div class="cat-form-row" id="catrow-${i}">
+        <input class="form-input cat-icon-input" id="ci-icon-${i}" value="${esc(c.icon)}" placeholder="🏷️" maxlength="4" onchange="updateCat(${i})"/>
+        <input class="form-input cat-name-input" id="ci-label-${i}" value="${esc(c.label)}" placeholder="Category name" maxlength="30" onchange="updateCat(${i})"/>
+        <select class="form-select cat-type-select" id="ci-type-${i}" onchange="updateCat(${i})">
+          <option value="expense"${c.type==='expense'?' selected':''}>Expense</option>
+          <option value="income"${c.type==='income'?' selected':''}>Income</option>
+        </select>
+        <button class="btn btn-danger btn-sm" onclick="deleteCat(${i})">✕</button>
+      </div>`).join('') +
+    `<div class="cat-form-row">
+      <input class="form-input cat-icon-input" id="ci-icon-new" placeholder="🏷️" maxlength="4"/>
+      <input class="form-input cat-name-input" id="ci-label-new" placeholder="New category…" maxlength="30"/>
+      <select class="form-select cat-type-select" id="ci-type-new">
+        <option value="expense">Expense</option>
+        <option value="income">Income</option>
+      </select>
+      <button class="btn btn-ghost btn-sm" onclick="addNewCat()">＋ Add</button>
+    </div>`;
+}
+
+function updateCat(i) {
+  const c = S.customCategories[i];
+  if (!c) return;
+  c.icon  = document.getElementById(`ci-icon-${i}`)?.value.trim()  || c.icon;
+  c.label = document.getElementById(`ci-label-${i}`)?.value.trim() || c.label;
+  c.type  = document.getElementById(`ci-type-${i}`)?.value         || c.type;
+  save();
+}
+
+function savePersonNames() {
+  PERSONS.forEach(p => {
+    const val = document.getElementById(`sp-name-${p.id}`)?.value.trim();
+    if (val) S.persons[p.id] = val;
+  });
+  save();
+  render();
+  renderPersonToggle();
+  const btn = document.querySelector('[onclick="savePersonNames()"]');
+  if (btn) { btn.textContent = 'Saved ✓'; setTimeout(()=>btn.textContent='Save Names', 1500); }
+}
+
+function importJSON(input) {
+  const file = input?.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const d = JSON.parse(e.target.result);
+      if (!d.transactions) { alert('Invalid backup file.'); return; }
+      if (!confirm(`This will replace all current data. Import ${d.transactions.length} transactions?`)) return;
+      localStorage.setItem('bb2', JSON.stringify(d));
+      load();
+      render();
+      renderSettings();
+      alert('Data imported successfully.');
+    } catch { alert('Could not parse JSON file.'); }
+  };
+  reader.readAsText(file);
+}
+
+function clearAllData() {
+  if (!confirm('Delete ALL data permanently? This cannot be undone.')) return;
+  localStorage.removeItem('bb2');
+  localStorage.removeItem('bb-notified');
+  location.reload();
 }
 
 // ── Income Projection Modal ─────────────────────────────────────────────────────
@@ -1450,7 +1682,7 @@ function addNewCat() {
   if (!label) return;
   S.customCategories.push({id: 'c_' + uid(), label, icon, type});
   save();
-  renderCategoryModalBody();
+  if (S.view === 'settings') renderSettingsCategories(); else renderCategoryModalBody();
 }
 
 function deleteCat(i) {
@@ -1460,7 +1692,7 @@ function deleteCat(i) {
   }
   S.customCategories.splice(i, 1);
   save();
-  renderCategoryModalBody();
+  if (S.view === 'settings') renderSettingsCategories(); else renderCategoryModalBody();
 }
 
 function saveCategoryChanges() {
@@ -1545,8 +1777,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('add-debt-btn').addEventListener('click', ()=>openDebtModal());
   document.getElementById('budgets-btn').addEventListener('click', openBudgetModal);
   document.getElementById('import-btn').addEventListener('click', openImportModal);
-  document.getElementById('categories-btn').addEventListener('click', openCategoryModal);
   document.getElementById('income-proj-btn').addEventListener('click', openIncomeProjectionModal);
+  document.getElementById('sidebar-overlay').addEventListener('click', toggleSidebar);
 
   document.getElementById('vendor-search').addEventListener('input', e => {
     S.vendorSearch = e.target.value;
