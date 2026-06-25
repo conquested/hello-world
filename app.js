@@ -1332,10 +1332,10 @@ async function extractPDFLines(file) {
     const page = await pdf.getPage(p);
     const content = await page.getTextContent();
 
-    // Group text items by Y coordinate (3pt tolerance), sorted top-to-bottom
+    // Group text items by Y coordinate (5pt tolerance handles baseline variation)
     const byY = new Map();
     for (const item of content.items) {
-      const y = Math.round(item.transform[5] / 3) * 3;
+      const y = Math.round(item.transform[5] / 5) * 5;
       if (!byY.has(y)) byY.set(y, []);
       byY.get(y).push({ x: item.transform[4], str: item.str });
     }
@@ -1346,6 +1346,10 @@ async function extractPDFLines(file) {
         .map(i => i.str)
         .join(' ')
         .replace(/\s{3,}/g, '  ')
+        // PDF.js often extracts the trailing "-" on debit amounts as a separate item
+        .replace(/([\d,]+\.\d{2})\s+-/g, '$1-')
+        // Handle "5.00- SC" → "5.00-SC" (service charge with gap)
+        .replace(/([\d,]+\.\d{2})-\s+(SC)/gi, '$1-$2')
         .trim();
       if (text) lines.push(text);
     });
@@ -1361,7 +1365,7 @@ function parseBankStatementLines(lines) {
 
   // Detect statement year from "Statement Dates M/DD/YY thru M/DD/YY"
   for (const ln of lines) {
-    const m = ln.match(/Statement Dates\s+\d+\/\d+\/(\d{2,4})/);
+    const m = ln.match(/Statement\s+Dates\s+\d+\/\d+\/(\d{2,4})/i);
     if (m) { const y = +m[1]; year = y < 100 ? 2000 + y : y; break; }
     const m2 = ln.match(/^Date\s+\d+\/\d+\/(\d{2,4})/);
     if (m2) { const y = +m2[1]; year = y < 100 ? 2000 + y : y; break; }
@@ -1373,10 +1377,10 @@ function parseBankStatementLines(lines) {
   for (let i = 0; i < lines.length; i++) {
     const ln = lines[i].trim();
 
-    if (/Activity in Date Order/.test(ln))                        { inActivity = true;  continue; }
-    if (/Summary of Deposits|Interest Rate Summary|End of Statement/.test(ln)) { inActivity = false; }
+    if (/Activity\s+in\s+Date\s+Order/i.test(ln))                          { inActivity = true;  continue; }
+    if (/Summary\s+of\s+Deposits|Interest\s+Rate\s+Summary|End\s+of\s+Statement/i.test(ln)) { inActivity = false; }
     if (!inActivity) continue;
-    if (/^Date\s+Description/.test(ln)) continue;
+    if (/^Date\s+Descri/i.test(ln)) continue;
 
     const m = TX.exec(ln);
     if (!m) continue;
