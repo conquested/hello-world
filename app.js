@@ -1047,7 +1047,7 @@ function exportData() {
 
 function openImportModal() {
   S.modal = {type: 'import', editing: false, data: {step: 'upload'}};
-  document.getElementById('modal-title').textContent = '📥 Import CSV';
+  document.getElementById('modal-title').textContent = '📥 Import Transactions';
   document.getElementById('modal-delete-btn').style.display = 'none';
   document.getElementById('modal-save-btn').style.display = 'none';
   renderImportStep();
@@ -1070,7 +1070,7 @@ function renderImportStep() {
       </div>` : '';
 
     body.innerHTML = `
-      <div class="import-hint">Upload a CSV exported from your bank. You'll map columns in the next step.</div>
+      <div class="import-hint">Upload a CSV or PDF bank statement. CSV files go through a column mapper; PDF files are parsed automatically (City National Bank format supported).</div>
       ${profileHtml}
       <div class="form-group">
         <label class="form-label">Person</label>
@@ -1081,11 +1081,11 @@ function renderImportStep() {
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label">CSV File</label>
-        <input class="form-input" id="imp-file" type="file" accept=".csv,text/csv" />
+        <label class="form-label">File</label>
+        <input class="form-input" id="imp-file" type="file" accept=".csv,.pdf,text/csv,application/pdf" />
       </div>
       <div class="import-actions">
-        <button class="btn btn-primary" onclick="loadImportFile()">Next: Map Columns →</button>
+        <button class="btn btn-primary" onclick="loadImportFile()">Next →</button>
       </div>`;
     d.importPerson = S.activePerson === 'all' ? 'A' : (S.activePerson === 'joint' ? 'joint' : S.activePerson);
   }
@@ -1146,6 +1146,29 @@ function renderImportStep() {
       </div>`;
   }
 
+  if (d.step === 'pdf-preview') {
+    const txs = d.pdfTxs || [];
+    const rows = txs.slice(0, 12).map(t => `
+      <tr>
+        <td>${t.date}</td>
+        <td>${esc(t.name)}</td>
+        <td class="${t.amount < 0 ? 'expense-text' : 'income-text'}" style="text-align:right">${t.amount < 0 ? '-' : '+'}$${Math.abs(t.amount).toFixed(2)}</td>
+      </tr>`).join('');
+    body.innerHTML = `
+      <div class="import-hint">Found <strong>${txs.length} transactions</strong>. Preview of first ${Math.min(txs.length, 12)}:</div>
+      <div class="imp-preview">
+        <table class="imp-table">
+          <thead><tr><th>Date</th><th>Description</th><th>Amount</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      ${txs.length > 12 ? `<div class="import-hint">…and ${txs.length - 12} more transactions</div>` : ''}
+      <div class="import-actions">
+        <button class="btn btn-ghost" onclick="backToUpload()">← Back</button>
+        <button class="btn btn-primary" onclick="runPDFImport()">Import ${txs.length} Transactions</button>
+      </div>`;
+  }
+
   if (d.step === 'done') {
     body.innerHTML = `
       <div class="import-done">
@@ -1170,7 +1193,11 @@ function renderCsvPreview(rows, headers) {
 
 function loadImportFile() {
   const file = document.getElementById('imp-file')?.files?.[0];
-  if (!file) { alert('Please choose a CSV file.'); return; }
+  if (!file) { alert('Please choose a file.'); return; }
+  if (/\.pdf$/i.test(file.name) || file.type === 'application/pdf') {
+    loadImportPDF(file);
+    return;
+  }
   const profileSel = document.getElementById('imp-profile')?.value || '';
   const reader = new FileReader();
   reader.onload = e => {
@@ -1276,6 +1303,157 @@ function normalizeDate(s) {
   const dt = new Date(s);
   if (!isNaN(dt)) return dstr(dt);
   return null;
+}
+
+// ── PDF Import ─────────────────────────────────────────────────────────────────
+
+async function loadPDFJS() {
+  if (window.pdfjsLib) return;
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload = () => {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      resolve();
+    };
+    s.onerror = () => reject(new Error('Failed to load PDF.js'));
+    document.head.appendChild(s);
+  });
+}
+
+async function extractPDFLines(file) {
+  await loadPDFJS();
+  const buf = await file.arrayBuffer();
+  const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+  const lines = [];
+
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+
+    // Group text items by Y coordinate (3pt tolerance), sorted top-to-bottom
+    const byY = new Map();
+    for (const item of content.items) {
+      const y = Math.round(item.transform[5] / 3) * 3;
+      if (!byY.has(y)) byY.set(y, []);
+      byY.get(y).push({ x: item.transform[4], str: item.str });
+    }
+
+    [...byY.keys()].sort((a, b) => b - a).forEach(y => {
+      const text = byY.get(y)
+        .sort((a, b) => a.x - b.x)
+        .map(i => i.str)
+        .join(' ')
+        .replace(/\s{3,}/g, '  ')
+        .trim();
+      if (text) lines.push(text);
+    });
+  }
+  return lines;
+}
+
+function parseBankStatementLines(lines) {
+  const txs = [];
+  let year = new Date().getFullYear();
+  let prevMon = 0;
+  let inActivity = false;
+
+  // Detect statement year from "Statement Dates M/DD/YY thru M/DD/YY"
+  for (const ln of lines) {
+    const m = ln.match(/Statement Dates\s+\d+\/\d+\/(\d{2,4})/);
+    if (m) { const y = +m[1]; year = y < 100 ? 2000 + y : y; break; }
+    const m2 = ln.match(/^Date\s+\d+\/\d+\/(\d{2,4})/);
+    if (m2) { const y = +m2[1]; year = y < 100 ? 2000 + y : y; break; }
+  }
+
+  // M/DD  DESCRIPTION  AMOUNT[-[SC]]  BALANCE
+  const TX = /^(\d{1,2})\/(\d{2})\s+(.+?)\s+([\d,]+\.\d{2}(?:-(SC)?)?)\s+([\d,]+\.\d{2})\s*$/;
+
+  for (let i = 0; i < lines.length; i++) {
+    const ln = lines[i].trim();
+
+    if (/Activity in Date Order/.test(ln))                        { inActivity = true;  continue; }
+    if (/Summary of Deposits|Interest Rate Summary|End of Statement/.test(ln)) { inActivity = false; }
+    if (!inActivity) continue;
+    if (/^Date\s+Description/.test(ln)) continue;
+
+    const m = TX.exec(ln);
+    if (!m) continue;
+
+    const [, moStr, dyStr, rawDesc, amtStr, scMarker] = m;
+    if (scMarker) continue; // skip service charges
+
+    const mon = +moStr, day = +dyStr;
+    if (prevMon === 12 && mon === 1) year++;
+    prevMon = mon;
+
+    const date = `${year}-${String(mon).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const isDebit = amtStr.includes('-');
+    const amt = parseFloat(amtStr.replace(/[^0-9.]/g, ''));
+    if (!amt) continue;
+
+    // PayPal transactions: real merchant is on the continuation line
+    let desc = rawDesc.trim();
+    if (/PAYPAL$/i.test(desc)) {
+      const nxt = (lines[i + 1] || '').trim();
+      if (nxt && !/^\d/.test(nxt) && !/^(Card#|C#|PR\d|XX)/i.test(nxt) && !TX.test(nxt) && nxt.length < 40) {
+        desc = nxt;
+      }
+    }
+
+    txs.push({ date, name: desc, amount: isDebit ? -amt : amt });
+  }
+  return txs;
+}
+
+async function loadImportPDF(file) {
+  const body = document.getElementById('modal-body');
+  body.innerHTML = `<div style="text-align:center;padding:30px;color:var(--muted)">🔄 Parsing PDF statement…</div>`;
+  try {
+    const lines = await extractPDFLines(file);
+    const txs = parseBankStatementLines(lines);
+    if (!txs.length) {
+      body.innerHTML = `<div class="import-hint" style="color:var(--expense);padding:20px;text-align:center">
+        ⚠️ No transactions found. Supported: City National Bank statements.<br><br>
+        <button class="btn btn-ghost btn-sm" onclick="backToUpload()">← Try again</button></div>`;
+      return;
+    }
+    S.modal.data.pdfTxs = txs;
+    S.modal.data.step = 'pdf-preview';
+    renderImportStep();
+  } catch (err) {
+    body.innerHTML = `<div class="import-hint" style="color:var(--expense);padding:20px;text-align:center">
+      ⚠️ Error parsing PDF: ${esc(String(err.message || err))}<br><br>
+      <button class="btn btn-ghost btn-sm" onclick="backToUpload()">← Try again</button></div>`;
+  }
+}
+
+function runPDFImport() {
+  const d = S.modal.data;
+  const txs = d.pdfTxs || [];
+  const existing = new Set(S.transactions.map(tx => txHash(tx.startDate, tx.amount, tx.name)));
+  let imported = 0, dupes = 0;
+  txs.forEach(({ date, name, amount }) => {
+    const amt = Math.abs(amount);
+    const hash = txHash(date, amt, name);
+    if (existing.has(hash)) { dupes++; return; }
+    existing.add(hash);
+    const vendor = extractVendor(name);
+    const catId = S.vendorRules[vendor] || (amount < 0 ? 'other' : 'other_income');
+    S.transactions.push({
+      id: uid(), name, amount: amt, categoryId: catId,
+      frequency: 'once', startDate: date, note: '',
+      color: PALETTE[8], person: d.importPerson || 'A',
+      importHash: hash,
+    });
+    imported++;
+  });
+  save();
+  d.step = 'done';
+  d.imported = imported;
+  d.dupes = dupes;
+  renderImportStep();
 }
 
 // ── Vendor Tracking ────────────────────────────────────────────────────────────
