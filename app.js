@@ -45,6 +45,18 @@ const PERSONS = [
   { id: 'B', label: 'Person B', color: '#a855f7' },
 ];
 
+// Cloud sync state — stored separately from financial data
+const SYNC = {
+  clientId:    '',
+  fileId:      '',
+  token:       '',
+  tokenExpiry: 0,
+  tokenClient: null,
+  status:      'idle',  // idle | connecting | syncing | synced | error
+  lastSynced:  null,
+  timer:       null,
+};
+
 const S = {
   view: 'calendar',
   year: new Date().getFullYear(),
@@ -91,7 +103,9 @@ function save() {
     budgets: S.budgets, customCategories: S.customCategories,
     persons: S.persons, importMappings: S.importMappings,
     vendorRules: S.vendorRules, incomeSettings: S.incomeSettings,
+    lastModified: Date.now(),
   }));
+  scheduleSyncToGoogle();
 }
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
@@ -1718,6 +1732,58 @@ function renderJointReport() {
 
 // ── Settings ────────────────────────────────────────────────────────────────────
 
+function renderSettingsSync() {
+  const el = document.getElementById('settings-sync');
+  if (!el) return;
+  if (!SYNC.clientId) {
+    el.innerHTML = `
+      <div class="sync-setup-box">
+        <p style="color:var(--muted);font-size:13px;margin:0 0 10px">Sync data to Google Drive — access VantagePoint from any device, automatically.</p>
+        <details class="sync-instructions">
+          <summary>How to get a Client ID (one-time, ~5 min) ›</summary>
+          <ol class="sync-steps">
+            <li>Open <a href="https://console.cloud.google.com" target="_blank" rel="noopener">console.cloud.google.com</a></li>
+            <li>Create a new project (any name)</li>
+            <li>APIs &amp; Services → Library → search <strong>Google Drive API</strong> → Enable</li>
+            <li>APIs &amp; Services → Credentials → Create Credentials → <strong>OAuth 2.0 Client ID</strong></li>
+            <li>Application type: <strong>Web application</strong></li>
+            <li>Authorized JavaScript origins: add <code>https://conquested.github.io</code></li>
+            <li>Copy the Client ID (looks like <code>xxxx.apps.googleusercontent.com</code>)</li>
+          </ol>
+        </details>
+        <div class="form-row" style="margin-top:10px;gap:8px;align-items:center">
+          <input class="form-input" id="sync-cid-input" type="text" placeholder="xxxxxxxx.apps.googleusercontent.com" style="flex:1;min-width:0"/>
+          <button class="btn btn-primary btn-sm" onclick="saveSyncClientId()">Connect Google Drive</button>
+        </div>
+      </div>`;
+  } else {
+    const stMap = { idle:'⚪ Not connected', connecting:'🟡 Connecting…', syncing:'🟡 Syncing…', synced:'🟢 Connected', error:'🔴 Error — try reconnecting' };
+    const connected = !!SYNC.token;
+    el.innerHTML = `
+      <div class="settings-data-row">
+        <div class="settings-item-info">
+          <div class="settings-item-title">Google Drive</div>
+          <div class="settings-item-desc">${stMap[SYNC.status] || '⚪ Unknown'}${SYNC.lastSynced && connected ? ' · last synced ' + timeSince(SYNC.lastSynced) : ''}</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          ${connected
+            ? `<button class="btn btn-ghost btn-sm" onclick="syncFromGoogle(true)">↺ Sync Now</button>`
+            : `<button class="btn btn-primary btn-sm" onclick="connectGoogle()">Reconnect</button>`}
+          <button class="btn btn-danger btn-sm" onclick="disconnectGoogle()">Disconnect</button>
+        </div>
+      </div>`;
+  }
+}
+
+function saveSyncClientId() {
+  const cid = document.getElementById('sync-cid-input')?.value.trim();
+  if (!cid) { alert('Please enter your Client ID.'); return; }
+  SYNC.clientId = cid;
+  localStorage.setItem('sync_cid', cid);
+  if (S.view === 'settings') renderSettingsSync();
+  connectGoogle();
+}
+
 function renderSettings() {
   // Person names
   document.getElementById('settings-persons').innerHTML =
@@ -1756,6 +1822,8 @@ function renderSettings() {
       </div>
       <button class="btn btn-danger btn-sm" onclick="clearAllData()">🗑️ Clear Everything</button>
     </div>`;
+
+  renderSettingsSync();
 }
 
 function renderSettingsCategories() {
@@ -1963,6 +2031,221 @@ function saveCategoryChanges() {
   render();
 }
 
+// ── Cloud Sync (Google Drive AppData) ──────────────────────────────────────────
+
+function loadSyncConfig() {
+  SYNC.clientId   = localStorage.getItem('sync_cid') || '';
+  SYNC.fileId     = localStorage.getItem('sync_fid') || '';
+  SYNC.lastSynced = localStorage.getItem('sync_ts')  || null;
+}
+
+function loadGIS() {
+  if (window.google?.accounts?.oauth2) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://accounts.google.com/gsi/client';
+    s.onload = resolve;
+    s.onerror = () => reject(new Error('Failed to load Google Identity Services'));
+    document.head.appendChild(s);
+  });
+}
+
+async function initSync() {
+  if (!SYNC.clientId) { renderSyncStatus(); return; }
+  try {
+    await loadGIS();
+    SYNC.tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: SYNC.clientId,
+      scope: 'https://www.googleapis.com/auth/drive.appdata',
+      callback: handleSyncToken,
+      error_callback: () => { SYNC.status = 'idle'; renderSyncStatus(); },
+    });
+    SYNC.status = 'connecting';
+    renderSyncStatus();
+    SYNC.tokenClient.requestAccessToken({ prompt: '' });
+  } catch (e) {
+    SYNC.status = 'error';
+    renderSyncStatus();
+  }
+}
+
+function handleSyncToken(resp) {
+  if (resp.error) { SYNC.status = 'error'; renderSyncStatus(); return; }
+  SYNC.token = resp.access_token;
+  SYNC.tokenExpiry = Date.now() + (resp.expires_in - 60) * 1000;
+  SYNC.status = 'synced';
+  renderSyncStatus();
+  syncFromGoogle();
+}
+
+async function connectGoogle() {
+  if (!SYNC.clientId) return;
+  SYNC.status = 'connecting';
+  renderSyncStatus();
+  try {
+    await loadGIS();
+    if (!SYNC.tokenClient) {
+      SYNC.tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: SYNC.clientId,
+        scope: 'https://www.googleapis.com/auth/drive.appdata',
+        callback: handleSyncToken,
+        error_callback: () => { SYNC.status = 'error'; renderSyncStatus(); },
+      });
+    }
+    SYNC.tokenClient.requestAccessToken({ prompt: 'consent' });
+  } catch (e) {
+    SYNC.status = 'error';
+    renderSyncStatus();
+  }
+}
+
+function disconnectGoogle() {
+  if (SYNC.token && window.google?.accounts?.oauth2) {
+    google.accounts.oauth2.revoke(SYNC.token, () => {});
+  }
+  SYNC.token = ''; SYNC.tokenExpiry = 0; SYNC.tokenClient = null;
+  SYNC.clientId = ''; SYNC.fileId = ''; SYNC.status = 'idle'; SYNC.lastSynced = null;
+  SYNC.timer = null;
+  localStorage.removeItem('sync_cid');
+  localStorage.removeItem('sync_fid');
+  localStorage.removeItem('sync_ts');
+  renderSyncStatus();
+  if (S.view === 'settings') renderSettingsSync();
+}
+
+function scheduleSyncToGoogle() {
+  if (!SYNC.token || !SYNC.clientId) return;
+  clearTimeout(SYNC.timer);
+  SYNC.timer = setTimeout(syncToGoogle, 3000);
+}
+
+async function ensureToken() {
+  if (SYNC.token && Date.now() < SYNC.tokenExpiry) return true;
+  if (!SYNC.tokenClient) return false;
+  return new Promise(resolve => {
+    const prev = SYNC.tokenClient.callback;
+    SYNC.tokenClient.callback = resp => {
+      SYNC.tokenClient.callback = prev;
+      if (resp.error || !resp.access_token) { resolve(false); return; }
+      SYNC.token = resp.access_token;
+      SYNC.tokenExpiry = Date.now() + (resp.expires_in - 60) * 1000;
+      resolve(true);
+    };
+    SYNC.tokenClient.requestAccessToken({ prompt: '' });
+  });
+}
+
+async function driveReq(url, opts = {}) {
+  if (!await ensureToken()) throw new Error('No valid token');
+  return fetch(url, {
+    ...opts,
+    headers: { Authorization: `Bearer ${SYNC.token}`, ...(opts.headers || {}) },
+  });
+}
+
+async function syncToGoogle() {
+  if (!SYNC.clientId || !SYNC.token) return;
+  SYNC.status = 'syncing';
+  renderSyncStatus();
+  try {
+    const data = localStorage.getItem('bb2') || '{}';
+    const bound = 'vp' + Date.now();
+    const meta  = JSON.stringify(SYNC.fileId
+      ? { name: 'vantagepoint-data.json' }
+      : { name: 'vantagepoint-data.json', parents: ['appDataFolder'] });
+    const body = `--${bound}\r\nContent-Type: application/json\r\n\r\n${meta}\r\n--${bound}\r\nContent-Type: application/json\r\n\r\n${data}\r\n--${bound}--`;
+    const url = SYNC.fileId
+      ? `https://www.googleapis.com/upload/drive/v3/files/${SYNC.fileId}?uploadType=multipart`
+      : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+    const res  = await driveReq(url, {
+      method:  SYNC.fileId ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': `multipart/related; boundary="${bound}"` },
+      body,
+    });
+    const json = await res.json();
+    if (json.id && !SYNC.fileId) {
+      SYNC.fileId = json.id;
+      localStorage.setItem('sync_fid', SYNC.fileId);
+    }
+    SYNC.lastSynced = new Date().toISOString();
+    localStorage.setItem('sync_ts', SYNC.lastSynced);
+    SYNC.status = 'synced';
+  } catch (e) {
+    console.error('[Sync] upload failed:', e);
+    SYNC.status = 'error';
+  }
+  renderSyncStatus();
+}
+
+async function syncFromGoogle(force = false) {
+  if (!SYNC.clientId || !SYNC.token) return;
+  SYNC.status = 'syncing';
+  renderSyncStatus();
+  try {
+    if (!SYNC.fileId) {
+      const res  = await driveReq("https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&fields=files(id,name)&q=name%3D'vantagepoint-data.json'");
+      const json = await res.json();
+      const f    = json.files?.[0];
+      if (!f) { await syncToGoogle(); return; }
+      SYNC.fileId = f.id;
+      localStorage.setItem('sync_fid', SYNC.fileId);
+    }
+    const metaRes  = await driveReq(`https://www.googleapis.com/drive/v3/files/${SYNC.fileId}?fields=modifiedTime`);
+    const meta     = await metaRes.json();
+    const cloudMs  = new Date(meta.modifiedTime).getTime();
+    const localRaw = JSON.parse(localStorage.getItem('bb2') || '{}');
+    const localMs  = localRaw.lastModified || 0;
+    if (!force && cloudMs <= localMs + 2000) { await syncToGoogle(); return; }
+    const dataRes  = await driveReq(`https://www.googleapis.com/drive/v3/files/${SYNC.fileId}?alt=media`);
+    const cloud    = await dataRes.json();
+    if (!cloud.transactions) { await syncToGoogle(); return; }
+    localStorage.setItem('bb2', JSON.stringify(cloud));
+    load();
+    render();
+    showToast('☁️ Data updated from Google Drive');
+    SYNC.lastSynced = new Date().toISOString();
+    localStorage.setItem('sync_ts', SYNC.lastSynced);
+    SYNC.status = 'synced';
+  } catch (e) {
+    console.error('[Sync] download failed:', e);
+    SYNC.status = 'error';
+  }
+  renderSyncStatus();
+}
+
+function renderSyncStatus() {
+  const dot = document.getElementById('sync-dot');
+  const lbl = document.getElementById('sync-lbl');
+  const map = {
+    idle:       { bg: 'var(--border)',   text: 'Not synced' },
+    connecting: { bg: '#f59e0b',         text: 'Connecting…' },
+    syncing:    { bg: '#f59e0b',         text: 'Syncing…' },
+    synced:     { bg: '#22c55e',         text: SYNC.lastSynced ? 'Synced ' + timeSince(SYNC.lastSynced) : 'Synced' },
+    error:      { bg: 'var(--expense)',  text: 'Sync error' },
+  };
+  const s = map[SYNC.status] || map.idle;
+  if (dot) dot.style.background = s.bg;
+  if (lbl) lbl.textContent = s.text;
+  if (S.view === 'settings') renderSettingsSync();
+}
+
+function timeSince(iso) {
+  const sec = Math.floor((Date.now() - new Date(iso)) / 1000);
+  if (sec < 60)    return 'just now';
+  if (sec < 3600)  return Math.floor(sec / 60)   + 'm ago';
+  if (sec < 86400) return Math.floor(sec / 3600)  + 'h ago';
+  return Math.floor(sec / 86400) + 'd ago';
+}
+
+function showToast(msg, ms = 3000) {
+  let t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  requestAnimationFrame(() => t.classList.add('toast-show'));
+  setTimeout(() => { t.classList.remove('toast-show'); setTimeout(() => t.remove(), 300); }, ms);
+}
+
 // ── Notifications ──────────────────────────────────────────────────────────────
 
 function checkNotifications() {
@@ -2021,6 +2304,8 @@ function render() {
 
 document.addEventListener('DOMContentLoaded', () => {
   load();
+  loadSyncConfig();
+  initSync();
 
   document.getElementById('prev-month').addEventListener('click', prevMonth);
   document.getElementById('next-month').addEventListener('click', nextMonth);
