@@ -1146,6 +1146,7 @@ function renderImportStep() {
         <label class="form-label">Save mapping as</label>
         <input class="form-input" id="imp-profile-name" type="text" placeholder="e.g. Chase Checking" value="${esc(d.profileName||'')}"/>
       </div>
+      ${buildVendorRulesHTML(d.rows.map(r => ({name: r[descIdx] || ''})))}
       <div class="import-actions">
         <button class="btn btn-ghost" onclick="backToUpload()">← Back</button>
         <button class="btn btn-primary" onclick="runImport()">Import Transactions</button>
@@ -1169,6 +1170,7 @@ function renderImportStep() {
         </table>
       </div>
       ${txs.length > 12 ? `<div class="import-hint">…and ${txs.length - 12} more transactions</div>` : ''}
+      ${buildVendorRulesHTML(txs)}
       <div class="import-actions">
         <button class="btn btn-ghost" onclick="backToUpload()">← Back</button>
         <button class="btn btn-primary" onclick="runPDFImport()">Import ${txs.length} Transactions</button>
@@ -1247,6 +1249,7 @@ function txHash(date, amount, desc) {
 }
 
 function runImport() {
+  saveVendorRulesFromForm();
   const d = S.modal.data;
   const dateIdx = parseInt(document.getElementById('imp-date').value);
   const descIdx = parseInt(document.getElementById('imp-desc').value);
@@ -1466,6 +1469,7 @@ async function loadImportPDF(file) {
 }
 
 function runPDFImport() {
+  saveVendorRulesFromForm();
   const d = S.modal.data;
   const txs = d.pdfTxs || [];
   const existing = new Set(S.transactions.map(tx => txHash(tx.startDate, tx.amount, tx.name)));
@@ -1490,6 +1494,42 @@ function runPDFImport() {
   d.imported = imported;
   d.dupes = dupes;
   renderImportStep();
+}
+
+// ── Vendor Rules Helpers (import) ──────────────────────────────────────────────
+
+function buildVendorRulesHTML(txs) {
+  const vendors = [...new Set(txs.map(t => extractVendor(t.name)).filter(Boolean))].sort((a, b) => {
+    return (S.vendorRules[a] ? 1 : 0) - (S.vendorRules[b] ? 1 : 0) || a.localeCompare(b);
+  });
+  if (!vendors.length) return '';
+
+  const rows = vendors.map(v => {
+    const existing = S.vendorRules[v] || '';
+    const isNew = !existing;
+    const opts = `<option value="">— skip —</option>` +
+      cats().map(c => `<option value="${c.id}"${c.id === existing ? ' selected' : ''}>${c.icon} ${c.label}</option>`).join('');
+    return `<div class="vendor-rule-row${isNew ? ' vendor-rule-new' : ''}">
+      <span class="vendor-rule-name">${esc(v)}${isNew ? ' <span class="vendor-rule-badge">new</span>' : ''}</span>
+      <select class="form-select vendor-rule-sel" data-vendor="${esc(v)}">${opts}</select>
+    </div>`;
+  }).join('');
+
+  const newCount = vendors.filter(v => !S.vendorRules[v]).length;
+  const subtitle = newCount ? `${newCount} new vendor${newCount > 1 ? 's' : ''} · rules saved for future imports` : 'all vendors have saved rules';
+  return `<div class="vendor-rules-panel">
+    <div class="vendor-rules-title">Vendor Categories <span class="muted">· ${subtitle}</span></div>
+    <div class="vendor-rules-list">${rows}</div>
+  </div>`;
+}
+
+function saveVendorRulesFromForm() {
+  document.querySelectorAll('.vendor-rule-sel').forEach(sel => {
+    const vendor = sel.dataset.vendor;
+    if (!vendor) return;
+    if (sel.value) S.vendorRules[vendor] = sel.value;
+    else delete S.vendorRules[vendor];
+  });
 }
 
 // ── Vendor Tracking ────────────────────────────────────────────────────────────
