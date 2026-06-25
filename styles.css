@@ -717,3 +717,82 @@ body { font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI',
 .upcoming-check-btn.paid { background:var(--income); border-color:var(--income); color:#fff; }
 .upcoming-paid .upcoming-name { text-decoration:line-through; opacity:.5; }
 .upcoming-paid .upcoming-amt { opacity:.5; }
+
+/* ── Trends range pills + header controls ────────────────── */
+.trends-header-controls { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.trends-range-pills { display:flex; gap:3px; background:var(--surface2); border-radius:6px; padding:3px; }
+.trend-pill { background:none; border:none; color:var(--muted); font-size:11px; font-weight:600; padding:4px 10px; border-radius:4px; cursor:pointer; transition:all .15s; font-family:inherit; }
+.trend-pill:hover { color:var(--text); }
+.trend-pill.active { background:var(--surface3); color:var(--text); }
+
+/* ── Category trends table ───────────────────────────────── */
+#cat-trends { margin-bottom:16px; overflow-x:auto; }
+.cat-trends-table { width:100%; border-collapse:collapse; font-size:11px; }
+.cat-trends-table th { padding:6px 10px; text-align:left; color:var(--muted); font-weight:600; border-bottom:1px solid var(--border); white-space:nowrap; }
+.cat-trends-table td { padding:5px 10px; border-bottom:1px solid var(--border); white-space:nowrap; vertical-align:middle; }
+.cat-trends-table tr:last-child td { border-bottom:none; }
+.cat-trends-name { font-weight:600; min-width:140px; }
+.cat-trends-bar-cell { display:flex; align-items:center; gap:6px; min-width:80px; }
+.cat-trends-bar { height:6px; border-radius:3px; min-width:2px; flex-shrink:0; }
+.cat-trends-zero { color:var(--muted); }
+
+/* ── Year-over-Year section ──────────────────────────────── */
+#yoy-section { margin-bottom:16px; }
+.yoy-legend { font-size:11px; color:var(--muted); margin-bottom:8px; display:flex; gap:12px; align-items:center; }
+.yoy-group { display:flex; gap:2px; align-items:flex-end; }
+#yoy-btn.active { background:var(--surface3); border-color:var(--accent); color:var(--accent); }
+
+/* ── Net Worth view ──────────────────────────────────────── */
+.nw-summary-row { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:20px; }
+.nw-card { flex:1; min-width:140px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:14px 18px; }
+.nw-card.nw-total { border-left:3px solid var(--accent); }
+.nw-card-label { font-size:10px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); margin-bottom:4px; font-weight:700; }
+.nw-card-val { font-size:22px; font-weight:800; }
+.nw-sections { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+@media (max-width:700px) { .nw-sections { grid-template-columns:1fr; } }
+.nw-section { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+.nw-section-hdr { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-bottom:1px solid var(--border); font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); }
+.nw-row { display:flex; align-items:center; gap:10px; padding:10px 16px; border-bottom:1px solid var(--border); border-left:3px solid transparent; font-size:12px; }
+.nw-row:last-of-type { border-bottom:none; }
+.nw-row-auto { opacity:.75; }
+.nw-row-icon { font-size:16px; flex-shrink:0; }
+.nw-row-name { flex:1; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.nw-row-type { font-size:10px; flex-shrink:0; }
+.nw-row-bal { font-weight:700; font-size:13px; flex-shrink:0; }
+.nw-row-actions { display:flex; gap:4px; flex-shrink:0; margin-left:4px; }
+.nw-empty { padding:14px 16px; color:var(--muted); font-size:12px; }
+.nw-add-btn { margin:10px 16px 14px; }
+.nw-chart-wrap { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:14px 18px; margin-bottom:16px; }
+.nw-chart-lbl { font-size:10px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); font-weight:700; margin-bottom:8px; }
+.nw-chart-labels { display:flex; justify-content:space-between; font-size:9px; color:var(--muted); margin-top:4px; }
+.nw-chart-change { font-size:11px; font-weight:700; margin-top:6px; }
+.nw-chart-placeholder { padding:24px; text-align:center; color:var(--muted); font-size:12px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); margin-bottom:16px; }
+
+/* ── Split transactions ───────────────────────────────────── */
+.split-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+.split-row { display:flex; align-items:center; gap:6px; margin-bottom:6px; }
+.split-row .split-amt { width:90px; flex-shrink:0; }
+.split-row .split-cat { flex:1; min-width:0; }
+.split-row .btn-icon { flex-shrink:0; }
+.split-remaining { font-size:11px; margin-top:2px; min-height:16px; }
+.split-toggle { cursor:pointer; font-size:11px; color:var(--muted); text-decoration:underline; background:none; border:none; font-family:inherit; padding:0; }
+.split-toggle:hover { color:var(--text); }
+.split-section { border:1px solid var(--border); border-radius:6px; padding:10px 12px; margin-top:6px; background:var(--surface2); }
+
+/* ── Drag & drop overlay ─────────────────────────────────── */
+.drop-zone-overlay { display:none; position:fixed; inset:0; z-index:10000; background:rgba(0,0,0,.7); backdrop-filter:blur(4px); align-items:center; justify-content:center; pointer-events:none; }
+.drop-zone-overlay.active { display:flex; }
+.drop-zone-inner { background:var(--surface); border:2px dashed var(--accent); border-radius:16px; padding:48px 64px; text-align:center; }
+.drop-zone-icon { font-size:48px; margin-bottom:12px; }
+.drop-zone-text { font-size:16px; font-weight:700; color:var(--text); }
+
+/* ── Print / PDF report ──────────────────────────────────── */
+@media print {
+  .sidebar-nav, .cal-topbar, .month-strip-wrap, .filter-bar-wrap, .budget-alert-strip,
+  .right-panel, .cal-panel .calendar-grid, .modal-overlay, .drop-zone-overlay,
+  .toast, #budget-alert-strip { display:none !important; }
+  .app { display:block; }
+  .app-main { display:block; }
+  .view { display:block !important; }
+  .view:not(.active) { display:none !important; }
+}

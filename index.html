@@ -25,6 +25,7 @@
       <button class="nav-btn" data-view="trends">📊 <span>Trends</span></button>
       <button class="nav-btn" data-view="vendors">🏪 <span>Vendors</span></button>
       <button class="nav-btn" data-view="joint">👥 <span>Joint</span></button>
+      <button class="nav-btn" data-view="networth">💎 <span>Net Worth</span></button>
     </nav>
     <div class="nav-sync-row">
       <span class="sync-dot" id="sync-dot"></span>
@@ -53,6 +54,7 @@
           <input class="search-input" id="search-input" type="text" placeholder="Search transactions…" />
           <button class="btn btn-ghost btn-sm" id="import-btn">📥 Import</button>
           <button class="btn btn-ghost btn-sm" id="budgets-btn">💰 Budgets</button>
+          <button class="btn btn-ghost btn-sm" id="report-btn">🖨️ Report</button>
           <button class="btn btn-primary" id="add-tx-btn">＋ Add</button>
         </div>
       </div>
@@ -140,6 +142,15 @@
       </div>
     </div>
 
+    <!-- NET WORTH VIEW -->
+    <div class="view" id="view-networth">
+      <div class="view-header">
+        <h1>💎 Net Worth</h1>
+        <button class="btn btn-primary" id="add-account-btn">＋ Add Account</button>
+      </div>
+      <div class="view-content" id="networth-content"></div>
+    </div>
+
     <!-- SETTINGS VIEW -->
     <div class="view" id="view-settings">
       <div class="view-header">
@@ -168,8 +179,17 @@
     <!-- TRENDS VIEW -->
     <div class="view" id="view-trends">
       <div class="view-header">
-        <h1>📊 6-Month Trends</h1>
-        <button class="btn btn-ghost btn-sm" id="income-proj-btn">📐 Income Projection</button>
+        <h1>📊 Trends</h1>
+        <div class="trends-header-controls">
+          <div class="trends-range-pills" id="trends-range-pills">
+            <button class="trend-pill active" data-months="6" onclick="setTrendsRange(6)">6 Mo</button>
+            <button class="trend-pill" data-months="3" onclick="setTrendsRange(3)">3 Mo</button>
+            <button class="trend-pill" data-months="12" onclick="setTrendsRange(12)">12 Mo</button>
+            <button class="trend-pill" data-months="24" onclick="setTrendsRange(24)">24 Mo</button>
+          </div>
+          <button class="btn btn-ghost btn-sm" id="yoy-btn" onclick="toggleYoY()">📅 YoY</button>
+          <button class="btn btn-ghost btn-sm" id="income-proj-btn">📐 Income Projection</button>
+        </div>
       </div>
       <div class="view-content">
         <div class="trends-legend">
@@ -180,10 +200,21 @@
         <div class="trends-section-label">Running Balance</div>
         <div class="trends-chart trends-chart-sm" id="trends-running"></div>
         <div class="trends-table" id="trends-table"></div>
+        <div class="trends-section-label">Category Breakdown by Month</div>
+        <div id="cat-trends"></div>
+        <div id="yoy-section"></div>
         <div id="income-projection"></div>
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- Drop zone overlay -->
+<div class="drop-zone-overlay" id="drop-zone-overlay">
+  <div class="drop-zone-inner">
+    <div class="drop-zone-icon">📂</div>
+    <div class="drop-zone-text">Drop CSV or PDF to import</div>
   </div>
 </div>
 

@@ -68,6 +68,17 @@ const SYNC = {
   timer:       null,
 };
 
+const ACCOUNT_TYPES = {
+  checking:    { label: 'Checking',    icon: '🏦' },
+  savings:     { label: 'Savings',     icon: '💰' },
+  investment:  { label: 'Investment',  icon: '📈' },
+  retirement:  { label: 'Retirement',  icon: '🏦' },
+  property:    { label: 'Property',    icon: '🏠' },
+  crypto:      { label: 'Crypto',      icon: '₿'  },
+  other_asset: { label: 'Other Asset', icon: '💎' },
+  liability:   { label: 'Liability',   icon: '💳' },
+};
+
 const S = {
   view: 'calendar',
   year: new Date().getFullYear(),
@@ -87,6 +98,10 @@ const S = {
   vendorRules: {},
   incomeSettings: { A: {hourlyRate: 0, expectedHours: 0}, B: {hourlyRate: 0, expectedHours: 0} },
   paidBills: {},
+  accounts: [],
+  netWorthHistory: [],
+  trendsMonths: 6,
+  showYoY: false,
   modal: null,
 };
 
@@ -105,6 +120,8 @@ function load() {
     S.vendorRules       = d.vendorRules       || {};
     S.incomeSettings    = d.incomeSettings    || { A: {hourlyRate:0, expectedHours:0}, B: {hourlyRate:0, expectedHours:0} };
     S.paidBills         = d.paidBills         || {};
+    S.accounts          = d.accounts          || [];
+    S.netWorthHistory   = d.netWorthHistory   || [];
     // Migrate: existing transactions default to person A
     S.transactions.forEach(tx => { if (!tx.person) tx.person = 'A'; });
   } catch {}
@@ -116,7 +133,8 @@ function save() {
     budgets: S.budgets, customCategories: S.customCategories,
     persons: S.persons, importMappings: S.importMappings,
     vendorRules: S.vendorRules, incomeSettings: S.incomeSettings,
-    paidBills: S.paidBills, lastModified: Date.now(),
+    paidBills: S.paidBills, accounts: S.accounts,
+    netWorthHistory: S.netWorthHistory, lastModified: Date.now(),
   }));
   scheduleSyncToGoogle();
   fireBudgetAlerts();
@@ -145,6 +163,12 @@ function p2(n) { return String(n).padStart(2,'0'); }
 function cats() { return [...CATEGORIES, ...S.customCategories]; }
 
 function getCat(id) { return cats().find(c=>c.id===id) || CATEGORIES[CATEGORIES.length-1]; }
+
+// Returns [{categoryId, amount}] — expands splits when present
+function txBreakdowns(tx) {
+  if (tx.splits && tx.splits.length) return tx.splits;
+  return [{ categoryId: tx.categoryId, amount: tx.amount }];
+}
 
 function textColor(hex) {
   const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
@@ -312,7 +336,9 @@ function renderSummary() {
   const evs = applyFilters(monthEvents(S.year, S.month));
   let income=0, expenses=0;
   evs.forEach(({tx}) => {
-    getCat(tx.categoryId).type==='income' ? income+=tx.amount : expenses+=tx.amount;
+    txBreakdowns(tx).forEach(({categoryId, amount}) => {
+      getCat(categoryId).type==='income' ? income+=amount : expenses+=amount;
+    });
   });
   const balance = income - expenses;
   const rate    = income>0 ? Math.round(expenses/income*100) : 0;
@@ -426,13 +452,15 @@ function renderAnalysis() {
   const catTotals={}, catColors={};
 
   evs.forEach(({tx}) => {
-    const cat = getCat(tx.categoryId);
-    if (cat.type==='income') { income+=tx.amount; }
-    else {
-      expenses+=tx.amount;
-      catTotals[tx.categoryId] = (catTotals[tx.categoryId]||0)+tx.amount;
-      if (!catColors[tx.categoryId]) catColors[tx.categoryId]=tx.color||PALETTE[8];
-    }
+    txBreakdowns(tx).forEach(({categoryId, amount}) => {
+      const cat = getCat(categoryId);
+      if (cat.type==='income') { income+=amount; }
+      else {
+        expenses+=amount;
+        catTotals[categoryId] = (catTotals[categoryId]||0)+amount;
+        if (!catColors[categoryId]) catColors[categoryId]=tx.color||PALETTE[8];
+      }
+    });
   });
 
   const sorted = Object.entries(catTotals).sort((a,b)=>b[1]-a[1]).slice(0,8);
@@ -505,9 +533,11 @@ function renderAnalysis() {
   let fullIncome=0, fullExpenses=0;
   const fullCatTotals={};
   fullEvs.forEach(({tx}) => {
-    const cat = getCat(tx.categoryId);
-    if (cat.type==='income') fullIncome+=tx.amount;
-    else { fullExpenses+=tx.amount; fullCatTotals[tx.categoryId]=(fullCatTotals[tx.categoryId]||0)+tx.amount; }
+    txBreakdowns(tx).forEach(({categoryId, amount}) => {
+      const cat = getCat(categoryId);
+      if (cat.type==='income') fullIncome+=amount;
+      else { fullExpenses+=amount; fullCatTotals[categoryId]=(fullCatTotals[categoryId]||0)+amount; }
+    });
   });
   const tips = buildTips(fullIncome, fullExpenses, fullCatTotals);
 
@@ -653,17 +683,179 @@ function deleteDebt(id) {
   save(); renderDebts();
 }
 
+// ── Net Worth Tracker ──────────────────────────────────────────────────────────
+
+function netWorthTotal() {
+  const assets = S.accounts.filter(a => a.type !== 'liability').reduce((s, a) => s + a.balance, 0);
+  const manualLiab = S.accounts.filter(a => a.type === 'liability').reduce((s, a) => s + a.balance, 0);
+  const debtLiab = S.debts.reduce((s, d) => s + d.balance, 0);
+  return assets - manualLiab - debtLiab;
+}
+
+function snapshotNetWorth() {
+  const today = new Date().toISOString().slice(0, 10);
+  const nw = netWorthTotal();
+  const last = S.netWorthHistory[S.netWorthHistory.length - 1];
+  if (!last || last.date !== today) {
+    S.netWorthHistory.push({ date: today, netWorth: nw });
+    if (S.netWorthHistory.length > 365) S.netWorthHistory = S.netWorthHistory.slice(-365);
+    save();
+  }
+}
+
+function buildNetWorthChart() {
+  const history = S.netWorthHistory.slice(-24);
+  if (history.length < 2) return `<div class="nw-chart-placeholder">Add accounts and revisit each month to build your net worth history chart.</div>`;
+
+  const vals = history.map(h => h.netWorth);
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const range = max - min || 1;
+  const W = 560, H = 80, pad = 8;
+
+  const pts = history.map((h, i) => {
+    const x = pad + (i / (history.length - 1)) * (W - pad * 2);
+    const y = H - pad - ((h.netWorth - min) / range) * (H - pad * 2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+
+  const last = vals[vals.length - 1], first = vals[0];
+  const change = last - first;
+  const col = last >= 0 ? 'var(--income)' : 'var(--expense)';
+  const dots = history.map((h, i) => {
+    const x = pad + (i / (history.length - 1)) * (W - pad * 2);
+    const y = H - pad - ((h.netWorth - min) / range) * (H - pad * 2);
+    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="${col}" title="${h.date}: ${fmt(h.netWorth)}"/>`;
+  }).join('');
+
+  return `<div class="nw-chart-wrap">
+    <div class="nw-chart-lbl">Net Worth Trend · ${history.length} snapshots</div>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:80px;overflow:visible">
+      <polyline points="${pts}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      ${dots}
+    </svg>
+    <div class="nw-chart-labels">
+      <span>${history[0].date}</span><span>${history[history.length-1].date}</span>
+    </div>
+    <div class="nw-chart-change ${change>=0?'income-text':'expense-text'}">${change>=0?'▲':'▼'} ${fmt(Math.abs(change))} since first snapshot</div>
+  </div>`;
+}
+
+function renderNetWorth() {
+  snapshotNetWorth();
+  const el = document.getElementById('networth-content');
+  if (!el) return;
+
+  const assets    = S.accounts.filter(a => a.type !== 'liability');
+  const manualLiab = S.accounts.filter(a => a.type === 'liability');
+  const totalAssets = assets.reduce((s, a) => s + a.balance, 0);
+  const totalManualLiab = manualLiab.reduce((s, a) => s + a.balance, 0);
+  const totalDebtLiab = S.debts.reduce((s, d) => s + d.balance, 0);
+  const totalLiab = totalManualLiab + totalDebtLiab;
+  const nw = totalAssets - totalLiab;
+
+  const acctRow = (a, isAuto) => `
+    <div class="nw-row" style="border-left-color:${a.color||PALETTE[4]}">
+      <div class="nw-row-icon">${(ACCOUNT_TYPES[a.type]||ACCOUNT_TYPES.other_asset).icon}</div>
+      <div class="nw-row-name">${esc(a.name)}</div>
+      <div class="nw-row-type muted">${(ACCOUNT_TYPES[a.type]||{label:a.type}).label}</div>
+      <div class="nw-row-bal ${a.type==='liability'?'expense-text':'income-text'}">${fmt(a.balance)}</div>
+      <div class="nw-row-actions">${isAuto
+        ? '<span class="muted" style="font-size:10px">from Debts</span>'
+        : `<button class="btn-icon" onclick="openAccountModal('${a.id}')">✏️</button><button class="btn-icon" onclick="deleteAccount('${a.id}')">🗑️</button>`
+      }</div>
+    </div>`;
+
+  el.innerHTML = `
+    <div class="nw-summary-row">
+      <div class="nw-card nw-total">
+        <div class="nw-card-label">Net Worth</div>
+        <div class="nw-card-val ${nw>=0?'income-text':'expense-text'}">${fmt(nw)}</div>
+      </div>
+      <div class="nw-card">
+        <div class="nw-card-label">Total Assets</div>
+        <div class="nw-card-val income-text">${fmt(totalAssets)}</div>
+      </div>
+      <div class="nw-card">
+        <div class="nw-card-label">Total Liabilities</div>
+        <div class="nw-card-val expense-text">${fmt(totalLiab)}</div>
+      </div>
+    </div>
+    ${buildNetWorthChart()}
+    <div class="nw-sections">
+      <div class="nw-section">
+        <div class="nw-section-hdr"><span>Assets</span><span class="income-text">${fmt(totalAssets)}</span></div>
+        ${assets.length ? assets.map(a => acctRow(a, false)).join('') : '<div class="nw-empty">No assets yet.</div>'}
+        <button class="btn btn-ghost btn-sm nw-add-btn" onclick="openAccountModal(null,'checking')">＋ Add Asset</button>
+      </div>
+      <div class="nw-section">
+        <div class="nw-section-hdr"><span>Liabilities</span><span class="expense-text">${fmt(totalLiab)}</span></div>
+        ${manualLiab.map(a => acctRow(a, false)).join('')}
+        ${S.debts.map(d => acctRow({id:d.id, name:d.name, balance:d.balance, color:d.color, type:'liability'}, true)).join('')}
+        ${!manualLiab.length && !S.debts.length ? '<div class="nw-empty">No liabilities yet.</div>' : ''}
+        <button class="btn btn-ghost btn-sm nw-add-btn" onclick="openAccountModal(null,'liability')">＋ Add Liability</button>
+      </div>
+    </div>`;
+}
+
+function openAccountModal(id, defaultType = 'checking') {
+  const a = id ? S.accounts.find(x => x.id === id) : null;
+  const col = a?.color || PALETTE[4];
+  S.modal = { type: 'account', editing: !!a, data: { ...(a || {}), selectedColor: col } };
+
+  const swatches = PALETTE.map(c =>
+    `<button class="color-swatch${c===col?' selected':''}" style="background:${c}" data-color="${c}" onclick="pickColor('${c}')"></button>`
+  ).join('');
+
+  const selType = a?.type || defaultType;
+  document.getElementById('modal-title').textContent = a ? 'Edit Account' : 'Add Account';
+  document.getElementById('modal-body').innerHTML = `
+    <div class="form-group">
+      <label class="form-label">Account Name</label>
+      <input class="form-input" id="f-name" type="text" value="${esc(a?.name||'')}" placeholder="e.g. Chase Checking, Vanguard 401k…" />
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Type</label>
+        <select class="form-select" id="f-acct-type">
+          ${Object.entries(ACCOUNT_TYPES).map(([k,v])=>`<option value="${k}"${k===selType?' selected':''}>${v.icon} ${v.label}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Balance ($)</label>
+        <input class="form-input" id="f-amount" type="number" step="0.01" value="${a?.balance??''}" placeholder="0.00" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Color</label>
+      <div class="color-palette">${swatches}</div>
+    </div>`;
+  document.getElementById('modal-delete-btn').style.display = a ? 'block' : 'none';
+  document.getElementById('modal-save-btn').textContent = 'Save';
+  showModal(true);
+}
+
+function deleteAccount(id) {
+  if (!confirm('Delete this account?')) return;
+  S.accounts = S.accounts.filter(a => a.id !== id);
+  save(); renderNetWorth();
+}
+
 // ── Render: Trends ─────────────────────────────────────────────────────────────
 
 function renderTrends() {
+  const n    = S.trendsMonths || 6;
   const now  = new Date();
   const data = [];
-  for (let i=5; i>=0; i--) {
+  for (let i=n-1; i>=0; i--) {
     let y=now.getFullYear(), m=now.getMonth()-i;
     while(m<0){m+=12;y--;}
     const evs=applyFilters(monthEvents(y,m));
     let inc=0,exp=0;
-    evs.forEach(({tx})=>{ getCat(tx.categoryId).type==='income'?inc+=tx.amount:exp+=tx.amount; });
+    evs.forEach(({tx})=>{
+      txBreakdowns(tx).forEach(({categoryId,amount})=>{
+        getCat(categoryId).type==='income' ? inc+=amount : exp+=amount;
+      });
+    });
     data.push({label:SHORT[m],year:y,month:m,inc,exp,bal:inc-exp});
   }
 
@@ -716,7 +908,124 @@ function renderTrends() {
       </tbody>
     </table>`;
 
+  renderCategoryTrends(data);
+  renderYoYSection();
   renderIncomeProjection();
+}
+
+// ── Render: Category Trends ────────────────────────────────────────────────────
+
+function renderCategoryTrends(data) {
+  const el = document.getElementById('cat-trends');
+  if (!el) return;
+
+  const catData = {};
+  data.forEach(({month: m, year: y}, idx) => {
+    applyFilters(monthEvents(y, m)).forEach(({tx}) => {
+      txBreakdowns(tx).forEach(({categoryId, amount}) => {
+        if (getCat(categoryId).type !== 'expense') return;
+        if (!catData[categoryId]) catData[categoryId] = new Array(data.length).fill(0);
+        catData[categoryId][idx] += amount;
+      });
+    });
+  });
+
+  const rows = Object.entries(catData)
+    .map(([id, totals]) => ({cat: getCat(id), totals, total: totals.reduce((s,v)=>s+v,0)}))
+    .filter(r => r.total > 0)
+    .sort((a, b) => b.total - a.total);
+
+  if (!rows.length) { el.innerHTML = '<div class="muted" style="padding:8px 0;font-size:12px">No expense data.</div>'; return; }
+
+  const maxVal = Math.max(...rows.flatMap(r => r.totals), 1);
+  const nowY   = new Date().getFullYear();
+
+  el.innerHTML = `<div style="overflow-x:auto"><table class="cat-trends-table">
+    <thead><tr><th>Category</th>${data.map(d=>`<th>${d.label}${d.year!==nowY?' '+d.year:''}</th>`).join('')}<th>Total</th></tr></thead>
+    <tbody>${rows.map(r => `<tr>
+      <td class="cat-trends-name">${r.cat.icon} ${r.cat.label}</td>
+      ${r.totals.map(v => `<td>
+        <div class="cat-trends-bar-cell">
+          <div class="cat-trends-bar" style="width:${Math.round(v/maxVal*56)}px;background:var(--expense);opacity:${v>0?.75:.15}"></div>
+          <span class="${v>0?'':'cat-trends-zero'}">${v>0?fmt(v):'—'}</span>
+        </div></td>`).join('')}
+      <td class="expense-text" style="font-weight:700">${fmt(r.total)}</td>
+    </tr>`).join('')}
+    </tbody></table></div>`;
+}
+
+// ── Render: Year-over-Year ─────────────────────────────────────────────────────
+
+function renderYoYSection() {
+  const el = document.getElementById('yoy-section');
+  const btn = document.getElementById('yoy-btn');
+  if (!el) return;
+  if (btn) btn.classList.toggle('active', S.showYoY);
+  if (!S.showYoY) { el.innerHTML = ''; return; }
+
+  const now = new Date();
+  const cy = now.getFullYear(), py = cy - 1;
+  const months = [];
+  for (let m = 0; m < 12; m++) {
+    const cEvs = applyFilters(monthEvents(cy, m));
+    const pEvs = applyFilters(monthEvents(py, m));
+    let cExp=0, pExp=0, cInc=0, pInc=0;
+    cEvs.forEach(({tx})=>{ txBreakdowns(tx).forEach(({categoryId,amount})=>{ getCat(categoryId).type==='income'?cInc+=amount:cExp+=amount; }); });
+    pEvs.forEach(({tx})=>{ txBreakdowns(tx).forEach(({categoryId,amount})=>{ getCat(categoryId).type==='income'?pInc+=amount:pExp+=amount; }); });
+    months.push({label:SHORT[m], cExp, pExp, cInc, pInc});
+  }
+
+  const maxExp = Math.max(...months.flatMap(m=>[m.cExp,m.pExp]), 1);
+  const cTotExp = months.reduce((s,m)=>s+m.cExp,0);
+  const pTotExp = months.reduce((s,m)=>s+m.pExp,0);
+  const diff = cTotExp - pTotExp;
+
+  el.innerHTML = `
+    <div class="trends-section-label" style="margin-top:16px">Year-over-Year: Expenses</div>
+    <div class="yoy-legend">
+      <span class="legend-dot" style="background:#3b82f6"></span>${cy}
+      <span class="legend-dot" style="background:#6b7280"></span>${py}
+      <span style="margin-left:8px" class="${diff<=0?'income-text':'expense-text'}">${diff<=0?'▼':'▲'} ${fmt(Math.abs(diff))} vs prior year</span>
+    </div>
+    <div class="trends-chart">
+      ${months.map(m=>{
+        const cH=Math.round(m.cExp/maxExp*160), pH=Math.round(m.pExp/maxExp*160);
+        return `<div class="trend-col">
+          <div class="trend-bars" style="gap:3px">
+            <div class="trend-bar" style="height:${cH}px;background:#3b82f6;width:14px" title="${cy}: ${fmt(m.cExp)}"></div>
+            <div class="trend-bar" style="height:${pH}px;background:#6b7280;width:14px" title="${py}: ${fmt(m.pExp)}"></div>
+          </div>
+          <div class="trend-lbl">${m.label}</div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div class="trends-table" style="margin-top:12px">
+      <table>
+        <thead><tr><th>Month</th><th>${cy} Exp</th><th>${py} Exp</th><th>Δ</th><th>${cy} Inc</th><th>${py} Inc</th></tr></thead>
+        <tbody>${months.map(m=>{
+          const d=m.cExp-m.pExp;
+          return `<tr>
+            <td>${m.label}</td>
+            <td class="expense-text">${fmt(m.cExp)}</td>
+            <td class="expense-text">${fmt(m.pExp)}</td>
+            <td class="${d<=0?'income-text':'expense-text'}">${d<=0?'▼':'▲'}${fmt(Math.abs(d))}</td>
+            <td class="income-text">${fmt(m.cInc)}</td>
+            <td class="income-text">${fmt(m.pInc)}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+    </div>`;
+}
+
+function setTrendsRange(n) {
+  S.trendsMonths = n;
+  document.querySelectorAll('.trend-pill').forEach(b => b.classList.toggle('active', +b.dataset.months === n));
+  renderTrends();
+}
+
+function toggleYoY() {
+  S.showYoY = !S.showYoY;
+  renderYoYSection();
 }
 
 function renderIncomeProjection() {
@@ -855,12 +1164,29 @@ function openTxModal(data={}, editing=false) {
     <div class="form-group">
       <label class="form-label">Note (optional)</label>
       <input class="form-input" id="f-note" type="text" value="${esc(data.note||'')}" placeholder="Any notes…" maxlength="120" />
+    </div>
+    <div class="form-group">
+      <div class="split-header">
+        <button class="split-toggle" onclick="toggleSplitSection()">✂️ Split by category</button>
+      </div>
+      <div id="split-section" style="display:${(data.splits&&data.splits.length)?'block':'none'}">
+        <div class="split-section">
+          <div id="split-rows"></div>
+          <button class="btn btn-ghost btn-sm" onclick="addSplit()" style="margin-top:6px">＋ Add split</button>
+          <div class="split-remaining" id="split-remaining"></div>
+        </div>
+      </div>
     </div>`;
 
   document.getElementById('modal-delete-btn').style.display = editing ? 'block' : 'none';
   document.getElementById('modal-save-btn').style.display = '';
   document.getElementById('modal-save-btn').textContent = 'Save';
   updateAnnual();
+  // Populate splits if editing a split transaction
+  if (data.splits && data.splits.length) {
+    S.modal.data.splits = data.splits.map(s => ({...s}));
+    renderSplitRows();
+  }
   showModal(true);
 }
 
@@ -874,6 +1200,71 @@ function pickColor(c) {
 function pickPerson(p) {
   if (S.modal) S.modal.data.person = p;
   document.querySelectorAll('.person-btn').forEach(b => b.classList.toggle('active', b.dataset.person === p));
+}
+
+function toggleSplitSection() {
+  const sec = document.getElementById('split-section');
+  if (!sec) return;
+  const open = sec.style.display === 'none';
+  sec.style.display = open ? 'block' : 'none';
+  if (open && !S.modal.data.splits?.length) addSplit();
+  else if (!open) { S.modal.data.splits = []; }
+}
+
+function addSplit() {
+  if (!S.modal) return;
+  if (!S.modal.data.splits) S.modal.data.splits = [];
+  const currentCat = document.getElementById('f-cat')?.value || 'other';
+  S.modal.data.splits.push({ id: uid(), amount: 0, categoryId: currentCat });
+  renderSplitRows();
+}
+
+function removeSplit(sid) {
+  if (!S.modal) return;
+  S.modal.data.splits = (S.modal.data.splits || []).filter(s => s.id !== sid);
+  renderSplitRows();
+}
+
+function renderSplitRows() {
+  const rows = document.getElementById('split-rows');
+  const rem  = document.getElementById('split-remaining');
+  if (!rows || !S.modal) return;
+  const splits  = S.modal.data.splits || [];
+  const total   = parseFloat(document.getElementById('f-amount')?.value) || 0;
+  const used    = splits.reduce((s, sp) => s + (sp.amount || 0), 0);
+  const left    = total - used;
+
+  rows.innerHTML = splits.map(sp => `
+    <div class="split-row">
+      <input class="form-input split-amt" type="number" min="0.01" step="0.01"
+             value="${sp.amount||''}" placeholder="0.00"
+             oninput="updateSplitAmt('${sp.id}',this.value)" />
+      <select class="form-select split-cat" onchange="updateSplitCat('${sp.id}',this.value)">
+        ${cats().map(c=>`<option value="${c.id}"${c.id===sp.categoryId?' selected':''}>${c.icon} ${c.label}</option>`).join('')}
+      </select>
+      <button class="btn-icon" onclick="removeSplit('${sp.id}')">✕</button>
+    </div>`).join('');
+
+  if (rem) {
+    if (!splits.length) { rem.innerHTML = ''; return; }
+    const cls = Math.abs(left) < 0.01 ? 'income-text' : left > 0 ? '' : 'expense-text';
+    rem.innerHTML = `<span class="${cls}">${
+      Math.abs(left) < 0.01 ? '✓ Splits balanced'
+        : left > 0 ? `${fmt(left)} remaining`
+        : `${fmt(Math.abs(left))} over total`
+    }</span>`;
+  }
+}
+
+function updateSplitAmt(sid, val) {
+  const sp = (S.modal?.data.splits || []).find(s => s.id === sid);
+  if (sp) sp.amount = parseFloat(val) || 0;
+  renderSplitRows();
+}
+
+function updateSplitCat(sid, catId) {
+  const sp = (S.modal?.data.splits || []).find(s => s.id === sid);
+  if (sp) sp.categoryId = catId;
 }
 
 function updateAnnual() {
@@ -1011,6 +1402,7 @@ function modalSave() {
   else if (t==='budgets')     saveBudgets();
   else if (t==='categories')  saveCategoryChanges();
   else if (t==='income-proj') saveIncomeProjection();
+  else if (t==='account')     saveAccount();
   // import handles its own save buttons
 }
 
@@ -1020,6 +1412,23 @@ function modalDelete() {
   if      (t==='transaction') deleteTxConfirm();
   else if (t==='goal')        deleteGoalConfirm();
   else if (t==='debt')        deleteDebtConfirm();
+  else if (t==='account')     { S.accounts = S.accounts.filter(a=>a.id!==S.modal.data.id); save(); showModal(false); renderNetWorth(); }
+}
+
+function saveAccount() {
+  const name    = document.getElementById('f-name')?.value.trim();
+  const balance = parseFloat(document.getElementById('f-amount')?.value);
+  const type    = document.getElementById('f-acct-type')?.value;
+  const color   = S.modal.data.selectedColor || PALETTE[4];
+  if (!name || isNaN(balance)) return showToast('⚠️ Name and balance are required');
+  const obj = { name, balance, type, color };
+  if (S.modal.editing && S.modal.data.id) {
+    const i = S.accounts.findIndex(a => a.id === S.modal.data.id);
+    if (i >= 0) S.accounts[i] = { ...S.accounts[i], ...obj };
+  } else {
+    S.accounts.push({ id: uid(), ...obj });
+  }
+  save(); showModal(false); renderNetWorth();
 }
 
 function saveTx() {
@@ -1036,6 +1445,21 @@ function saveTx() {
   const person = S.modal.data.person || 'A';
   const obj = {name,amount,categoryId:cat,frequency:freq,startDate:date,note,color,person};
   if (endDate) obj.endDate = endDate; else delete obj.endDate;
+
+  // Handle splits
+  const splits = (S.modal.data.splits || []).filter(s => s.amount > 0);
+  if (splits.length > 0) {
+    const splitSum = splits.reduce((s, sp) => s + sp.amount, 0);
+    if (Math.abs(splitSum - amount) > 0.01) {
+      showToast(`⚠️ Splits total ${fmt(splitSum)} doesn't match amount ${fmt(amount)}`);
+      return;
+    }
+    obj.splits = splits;
+    obj.categoryId = splits[0].categoryId;
+  } else {
+    delete obj.splits;
+  }
+
   if (S.modal.editing && S.modal.data.id) {
     const i = S.transactions.findIndex(t=>t.id===S.modal.data.id);
     if (i>=0) S.transactions[i]={...S.transactions[i],...obj};
@@ -1142,6 +1566,7 @@ function switchView(v) {
   if (v==='vendors')  renderVendors();
   if (v==='joint')    renderJointReport();
   if (v==='settings') renderSettings();
+  if (v==='networth') renderNetWorth();
 }
 
 function toggleSidebar() {
@@ -1186,6 +1611,112 @@ function exportCSV() {
   URL.revokeObjectURL(a.href);
 }
 
+// ── PDF Report Export ──────────────────────────────────────────────────────────
+
+function exportPDFReport() {
+  const evs = applyFilters(monthEvents(S.year, S.month));
+  let income=0, expenses=0;
+  const catTotals = {};
+  evs.forEach(({tx}) => {
+    txBreakdowns(tx).forEach(({categoryId, amount}) => {
+      if (getCat(categoryId).type==='income') income+=amount;
+      else { expenses+=amount; catTotals[categoryId]=(catTotals[categoryId]||0)+amount; }
+    });
+  });
+
+  const monthLabel = `${MONTHS[S.month]} ${S.year}`;
+  const sorted = [...evs].sort((a,b) => a.date.localeCompare(b.date));
+
+  const win = window.open('', '_blank');
+  if (!win) { showToast('⚠️ Pop-up blocked — allow pop-ups and try again'); return; }
+  win.document.write(`<!DOCTYPE html><html><head>
+<title>VantagePoint — ${monthLabel}</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:Arial,sans-serif; color:#111; font-size:12px; padding:24px; }
+  h1  { font-size:20px; margin-bottom:2px; }
+  .sub { color:#666; font-size:12px; margin-bottom:18px; }
+  .summary { display:flex; gap:20px; background:#f5f5f5; padding:14px 18px; border-radius:8px; margin-bottom:22px; }
+  .sum-item .lbl { font-size:10px; text-transform:uppercase; letter-spacing:.5px; color:#888; margin-bottom:2px; }
+  .sum-item .val { font-size:18px; font-weight:800; }
+  .income { color:#16a34a; } .expense { color:#dc2626; }
+  table { width:100%; border-collapse:collapse; margin-bottom:22px; font-size:11px; }
+  th { background:#f0f0f0; padding:6px 10px; text-align:left; font-weight:700; border-bottom:2px solid #ddd; }
+  td { padding:5px 10px; border-bottom:1px solid #eee; }
+  tr:last-child td { border-bottom:none; }
+  h2 { font-size:13px; font-weight:700; margin:18px 0 8px; text-transform:uppercase; letter-spacing:.5px; color:#555; }
+  button { margin-top:16px; padding:8px 20px; background:#111; color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:13px; }
+  @media print { button { display:none; } body { padding:12px; } }
+</style></head><body>
+<h1>VantagePoint</h1>
+<div class="sub">${monthLabel} · Financial Report</div>
+<div class="summary">
+  <div class="sum-item"><div class="lbl">Income</div><div class="val income">${fmt(income)}</div></div>
+  <div class="sum-item"><div class="lbl">Expenses</div><div class="val expense">${fmt(expenses)}</div></div>
+  <div class="sum-item"><div class="lbl">Balance</div><div class="val ${income-expenses>=0?'income':'expense'}">${income-expenses>=0?'+':''}${fmt(income-expenses)}</div></div>
+</div>
+<h2>Transactions (${sorted.length})</h2>
+<table>
+  <thead><tr><th>Date</th><th>Name</th><th>Category</th><th>Amount</th><th>Person</th></tr></thead>
+  <tbody>${sorted.map(({date,tx})=>{
+    const c = getCat(tx.categoryId);
+    return `<tr>
+      <td>${date}</td>
+      <td>${esc(tx.name)}</td>
+      <td>${c.icon} ${c.label}</td>
+      <td class="${c.type==='income'?'income':'expense'}">${fmt(tx.amount)}</td>
+      <td>${esc(S.persons[tx.person]||tx.person||'A')}</td>
+    </tr>`;
+  }).join('')}</tbody>
+</table>
+<h2>Category Summary</h2>
+<table>
+  <thead><tr><th>Category</th><th>Amount</th><th>% of Expenses</th></tr></thead>
+  <tbody>${Object.entries(catTotals).sort((a,b)=>b[1]-a[1]).map(([id,amt])=>{
+    const c=getCat(id);
+    return `<tr>
+      <td>${c.icon} ${c.label}</td>
+      <td class="${c.type==='income'?'income':'expense'}">${fmt(amt)}</td>
+      <td>${expenses>0?Math.round(amt/expenses*100):0}%</td>
+    </tr>`;
+  }).join('')}</tbody>
+</table>
+<button onclick="window.print()">🖨️ Print / Save as PDF</button>
+</body></html>`);
+  win.document.close();
+  win.focus();
+}
+
+// ── Drag & Drop Import ─────────────────────────────────────────────────────────
+
+function initDragDrop() {
+  const overlay = document.getElementById('drop-zone-overlay');
+  if (!overlay) return;
+  let counter = 0;
+
+  document.addEventListener('dragenter', e => {
+    if (!e.dataTransfer?.types?.includes('Files')) return;
+    counter++;
+    overlay.classList.add('active');
+  });
+  document.addEventListener('dragleave', () => {
+    if (--counter <= 0) { counter = 0; overlay.classList.remove('active'); }
+  });
+  document.addEventListener('dragover', e => { e.preventDefault(); });
+  document.addEventListener('drop', e => {
+    e.preventDefault();
+    counter = 0;
+    overlay.classList.remove('active');
+    const file = e.dataTransfer?.files?.[0];
+    if (!file) return;
+    openImportModal();
+    requestAnimationFrame(() => {
+      if (file.name.toLowerCase().endsWith('.pdf')) loadImportPDF(file);
+      else loadImportCSV(file);
+    });
+  });
+}
+
 // ── CSV Import ─────────────────────────────────────────────────────────────────
 
 function openImportModal() {
@@ -1213,7 +1744,7 @@ function renderImportStep() {
       </div>` : '';
 
     body.innerHTML = `
-      <div class="import-hint">Upload a CSV or PDF bank statement. CSV files go through a column mapper; PDF files are parsed automatically (City National Bank format supported).</div>
+      <div class="import-hint">Upload a CSV or PDF bank statement. CSV files go through a column mapper; PDF files are auto-parsed (Chase, Bank of America, Wells Fargo, City National).</div>
       ${profileHtml}
       <div class="form-group">
         <label class="form-label">Person</label>
@@ -2655,8 +3186,10 @@ function getBudgetAlerts() {
   const evs = monthEvents(now.getFullYear(), now.getMonth());
   const catTotals = {};
   evs.forEach(({tx}) => {
-    if (getCat(tx.categoryId).type === 'expense')
-      catTotals[tx.categoryId] = (catTotals[tx.categoryId] || 0) + tx.amount;
+    txBreakdowns(tx).forEach(({categoryId, amount}) => {
+      if (getCat(categoryId).type === 'expense')
+        catTotals[categoryId] = (catTotals[categoryId] || 0) + amount;
+    });
   });
   return Object.entries(S.budgets)
     .map(([id, budget]) => ({ id, budget, spent: catTotals[id] || 0, cat: getCat(id) }))
@@ -2803,6 +3336,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.addEventListener('keydown', e=>{ if(e.key==='Escape') showModal(false); });
 
+  document.getElementById('add-account-btn')?.addEventListener('click', () => openAccountModal());
+  document.getElementById('report-btn')?.addEventListener('click', exportPDFReport);
+
+  initDragDrop();
   checkNotifications();
   render();
   fireBudgetAlerts();
