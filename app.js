@@ -748,6 +748,8 @@ function openTxModal(data={}, editing=false) {
     </div>`;
 
   document.getElementById('modal-delete-btn').style.display = editing ? 'block' : 'none';
+  document.getElementById('modal-save-btn').style.display = '';
+  document.getElementById('modal-save-btn').textContent = 'Save';
   updateAnnual();
   showModal(true);
 }
@@ -812,6 +814,8 @@ function openGoalModal(id) {
     </div>`;
 
   document.getElementById('modal-delete-btn').style.display = g ? 'block' : 'none';
+  document.getElementById('modal-save-btn').style.display = '';
+  document.getElementById('modal-save-btn').textContent = 'Save';
   showModal(true);
 }
 
@@ -852,6 +856,8 @@ function openDebtModal(id) {
     </div>`;
 
   document.getElementById('modal-delete-btn').style.display = d ? 'block' : 'none';
+  document.getElementById('modal-save-btn').style.display = '';
+  document.getElementById('modal-save-btn').textContent = 'Save';
   showModal(true);
 }
 
@@ -1417,9 +1423,14 @@ async function loadImportPDF(file) {
   try {
     const lines = await extractPDFLines(file);
     const txs = parseBankStatementLines(lines);
+    console.log('[PDF] extracted lines:', lines.length, lines.slice(0,30));
+    console.log('[PDF] parsed txs:', txs.length, txs.slice(0,5));
     if (!txs.length) {
-      body.innerHTML = `<div class="import-hint" style="color:var(--expense);padding:20px;text-align:center">
-        ⚠️ No transactions found. Supported: City National Bank statements.<br><br>
+      const preview = lines.slice(0, 20).map(l => esc(l)).join('<br>');
+      body.innerHTML = `<div class="import-hint" style="color:var(--expense);padding:12px 20px">
+        ⚠️ No transactions found. Extracted ${lines.length} text lines — check browser console (F12) for details.<br><br>
+        <details><summary style="cursor:pointer;color:var(--muted);font-size:11px">First 20 extracted lines</summary>
+        <pre style="font-size:10px;color:var(--muted);margin-top:8px;white-space:pre-wrap">${preview}</pre></details><br>
         <button class="btn btn-ghost btn-sm" onclick="backToUpload()">← Try again</button></div>`;
       return;
     }
