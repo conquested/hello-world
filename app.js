@@ -119,7 +119,10 @@ function save() {
     paidBills: S.paidBills, lastModified: Date.now(),
   }));
   scheduleSyncToGoogle();
+  fireBudgetAlerts();
 }
+
+const ALERTED_BUDGETS = new Set(); // session-only: tracks thresholds already toasted
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 
@@ -2453,6 +2456,69 @@ function showToast(msg, ms = 3000) {
   setTimeout(() => { t.classList.remove('toast-show'); setTimeout(() => t.remove(), 300); }, ms);
 }
 
+// ── Budget Alerts ──────────────────────────────────────────────────────────────
+
+function getBudgetAlerts() {
+  if (!Object.keys(S.budgets).length) return [];
+  const now = new Date();
+  const evs = monthEvents(now.getFullYear(), now.getMonth());
+  const catTotals = {};
+  evs.forEach(({tx}) => {
+    if (getCat(tx.categoryId).type === 'expense')
+      catTotals[tx.categoryId] = (catTotals[tx.categoryId] || 0) + tx.amount;
+  });
+  return Object.entries(S.budgets)
+    .map(([id, budget]) => ({ id, budget, spent: catTotals[id] || 0, cat: getCat(id) }))
+    .map(a => ({ ...a, pct: a.spent / a.budget }))
+    .filter(a => a.pct >= 0.7)
+    .sort((a, b) => b.pct - a.pct);
+}
+
+function renderBudgetAlerts() {
+  const strip = document.getElementById('budget-alert-strip');
+  if (!strip) return;
+  const alerts = getBudgetAlerts();
+  if (!alerts.length) { strip.innerHTML = ''; return; }
+
+  const items = alerts.map(a => {
+    const over  = a.pct >= 1;
+    const warn  = a.pct >= 0.9;
+    const cls   = over ? 'ba-over' : warn ? 'ba-warn' : 'ba-caution';
+    const icon  = over ? '🚨' : warn ? '⚠️' : '🔔';
+    const label = over
+      ? `${a.cat.icon} <strong>${a.cat.label}</strong> is over budget — ${fmt(a.spent)} of ${fmt(a.budget)}`
+      : `${a.cat.icon} <strong>${a.cat.label}</strong> at ${Math.round(a.pct * 100)}% — ${fmt(a.spent)} of ${fmt(a.budget)}`;
+    return `<div class="ba-item ${cls}">${icon} <span>${label}</span></div>`;
+  }).join('');
+
+  strip.innerHTML = `<div class="budget-alert-strip-inner">${items}<button class="ba-dismiss" onclick="document.getElementById('budget-alert-strip').innerHTML=''">✕</button></div>`;
+}
+
+function fireBudgetAlerts() {
+  const monthKey = `${new Date().getFullYear()}-${new Date().getMonth()}`;
+  getBudgetAlerts().forEach(a => {
+    const threshold = a.pct >= 1 ? '100' : '90';
+    if (a.pct < 0.9) return;
+    const key = `${monthKey}:${a.id}:${threshold}`;
+    if (ALERTED_BUDGETS.has(key)) return;
+    ALERTED_BUDGETS.add(key);
+    const msg = a.pct >= 1
+      ? `${a.cat.icon} ${a.cat.label} is over budget (${fmt(a.spent)} / ${fmt(a.budget)})`
+      : `${a.cat.icon} ${a.cat.label} at ${Math.round(a.pct * 100)}% of budget`;
+    showToast(msg, 5000);
+    // Browser notification if permission granted
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      const notified = new Set(JSON.parse(localStorage.getItem('bb-notified') || '[]'));
+      if (!notified.has(key)) {
+        new Notification('VantagePoint — Budget Alert', { body: msg.replace(/[^\x20-\x7E]/g, '') });
+        notified.add(key);
+        localStorage.setItem('bb-notified', JSON.stringify([...notified].slice(-200)));
+      }
+    }
+  });
+  renderBudgetAlerts();
+}
+
 // ── Notifications ──────────────────────────────────────────────────────────────
 
 function checkNotifications() {
@@ -2505,6 +2571,7 @@ function render() {
   renderCalendar();
   renderUpcoming();
   renderAnalysis();
+  renderBudgetAlerts();
 }
 
 // ── Init ───────────────────────────────────────────────────────────────────────
@@ -2547,4 +2614,5 @@ document.addEventListener('DOMContentLoaded', () => {
 
   checkNotifications();
   render();
+  fireBudgetAlerts();
 });

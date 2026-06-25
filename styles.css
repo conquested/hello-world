@@ -684,6 +684,17 @@ body { font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI',
 .sync-steps code { background:var(--surface); padding:1px 5px; border-radius:3px; font-size:11px; color:var(--text); }
 .sync-steps a { color:var(--primary); }
 
+/* ── Budget alert strip ──────────────────────────────────── */
+#budget-alert-strip { flex-shrink:0; }
+.budget-alert-strip-inner { display:flex; align-items:center; gap:0; flex-wrap:wrap; padding:0 20px; border-bottom:1px solid var(--border); background:var(--surface); position:relative; }
+.ba-item { display:flex; align-items:center; gap:6px; padding:8px 16px 8px 0; font-size:12px; border-right:1px solid var(--border); margin-right:16px; }
+.ba-item:last-of-type { border-right:none; }
+.ba-over   { color:#ef4444; }
+.ba-warn   { color:#f59e0b; }
+.ba-caution{ color:#C9A84C; }
+.ba-dismiss { margin-left:auto; background:none; border:none; color:var(--muted); font-size:14px; cursor:pointer; padding:8px 0 8px 8px; flex-shrink:0; }
+.ba-dismiss:hover { color:var(--text); }
+
 /* ── Donut chart ─────────────────────────────────────────── */
 .donut-row { display:flex; align-items:center; gap:14px; margin-bottom:14px; }
 .donut-chart { flex-shrink:0; }
