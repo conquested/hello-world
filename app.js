@@ -1663,19 +1663,210 @@ function parseBankStatementLines(lines) {
   return txs;
 }
 
+// ── Chase Bank Parser ──────────────────────────────────────────────────────────
+function parseChaseStatement(lines) {
+  const txs = [];
+  let year = new Date().getFullYear();
+  let prevMon = 0;
+  let inActivity = false;
+  let isCredit = false;
+  let prevBalance = null;
+
+  for (const ln of lines.slice(0, 80)) {
+    const m = ln.match(/\b(20\d{2})\b/);
+    if (m) { year = +m[1]; break; }
+  }
+
+  const headerText = lines.slice(0, 40).join('\n');
+  if (/credit\s+card|visa\b|mastercard/i.test(headerText)) isCredit = true;
+  if (/trans(?:action)?\s+date.*post\s+date/i.test(headerText)) isCredit = true;
+
+  for (let i = 0; i < lines.length; i++) {
+    const ln = lines[i].trim();
+
+    if (/^(?:account\s+activity|transaction\s+detail|transaction\s+history|transactions?)\s*$/i.test(ln) ||
+        /^date\s+description\s+amount/i.test(ln) ||
+        /^trans(?:action)?\s+date\s+post/i.test(ln)) {
+      inActivity = true; continue;
+    }
+    if (/^fees\s+charged|^interest\s+charged|^account\s+summary/i.test(ln)) inActivity = false;
+    if (!inActivity) continue;
+    if (/^(?:date\s+|trans(?:action)?\s+date\s+|post\s+date\s+|beginning\s+balance|ending\s+balance)/i.test(ln)) continue;
+
+    const dm = ln.match(/^(\d{1,2})\/(\d{2})\s+/);
+    if (!dm) continue;
+    const mon = +dm[1], day = +dm[2];
+    if (mon < 1 || mon > 12 || day < 1 || day > 31) continue;
+
+    let rest = ln.slice(dm[0].length);
+    if (isCredit) rest = rest.replace(/^\d{1,2}\/\d{2}\s+/, '');
+
+    const allAmts = [...rest.matchAll(/-?[\d,]+\.\d{2}/g)];
+    if (!allAmts.length) continue;
+
+    const txAmtMatch = allAmts.length >= 2 ? allAmts[allAmts.length - 2] : allAmts[0];
+    const balMatch   = allAmts.length >= 2 ? allAmts[allAmts.length - 1] : null;
+    const desc = rest.slice(0, txAmtMatch.index).trim();
+    if (!desc) continue;
+
+    let raw = parseFloat(txAmtMatch[0].replace(/,/g, ''));
+    if (!raw || isNaN(raw)) continue;
+
+    if (balMatch) {
+      const bal = parseFloat(balMatch[0].replace(/,/g, ''));
+      if (!txAmtMatch[0].startsWith('-') && prevBalance !== null && !isCredit) {
+        const delta = bal - prevBalance;
+        if (Math.abs(delta + raw) < 0.50) raw = -raw;
+      }
+      prevBalance = bal;
+    }
+
+    if (prevMon === 12 && mon === 1) year++;
+    prevMon = mon;
+
+    const date = `${year}-${String(mon).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    txs.push({ date, name: desc, amount: isCredit ? -raw : raw });
+  }
+  return txs;
+}
+
+// ── Bank of America Parser ─────────────────────────────────────────────────────
+function parseBofAStatement(lines) {
+  const txs = [];
+  let year = new Date().getFullYear();
+  let inDebits = false;
+
+  for (const ln of lines.slice(0, 80)) {
+    const m = ln.match(/\b(20\d{2})\b/);
+    if (m) { year = +m[1]; break; }
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const ln = lines[i].trim();
+
+    if (/withdrawals?\s+and\s+other\s+debits/i.test(ln)) { inDebits = true; continue; }
+    if (/deposits?\s+and\s+other\s+credits/i.test(ln)) { inDebits = false; continue; }
+    if (/^date\s+description/i.test(ln)) continue;
+
+    // BofA date: MM/DD/YY or MM/DD/YYYY
+    const dm = ln.match(/^(\d{1,2})\/(\d{2})\/(\d{2,4})\s+/);
+    if (!dm) continue;
+    const mon = +dm[1], day = +dm[2];
+    const txYear = +dm[3] < 100 ? 2000 + +dm[3] : +dm[3];
+    if (mon < 1 || mon > 12 || day < 1 || day > 31) continue;
+
+    const rest = ln.slice(dm[0].length);
+    const allAmts = [...rest.matchAll(/-?[\d,]+\.\d{2}/g)];
+    if (!allAmts.length) continue;
+
+    const txAmtMatch = allAmts.length >= 2 ? allAmts[allAmts.length - 2] : allAmts[0];
+    const desc = rest.slice(0, txAmtMatch.index).trim();
+    if (!desc) continue;
+
+    let raw = parseFloat(txAmtMatch[0].replace(/,/g, ''));
+    if (!raw || isNaN(raw)) continue;
+
+    // In the "Withdrawals" section amounts are shown as positive — negate them
+    if (inDebits && raw > 0) raw = -raw;
+
+    const date = `${txYear}-${String(mon).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    txs.push({ date, name: desc, amount: raw });
+  }
+  return txs;
+}
+
+// ── Wells Fargo Parser ─────────────────────────────────────────────────────────
+// WF uses two separate Deposits / Withdrawals columns (both positive).
+// We use the running balance delta to infer direction.
+function parseWellsFargoStatement(lines) {
+  const txs = [];
+  let inActivity = false;
+  let prevBalance = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const ln = lines[i].trim();
+
+    if (/^transaction\s+history\s*$/i.test(ln) ||
+        /^date\s+description\s+deposits/i.test(ln)) { inActivity = true; continue; }
+    if (/^ending\s+balance|^total\s+(?:deposits|withdrawals)/i.test(ln)) inActivity = false;
+    if (!inActivity) continue;
+    if (/^(?:date|description|deposits|withdrawals|ending\s+daily)/i.test(ln)) continue;
+
+    // WF date: M/D/YYYY or MM/DD/YYYY
+    const dm = ln.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+/);
+    if (!dm) continue;
+    const mon = +dm[1], day = +dm[2], txYear = +dm[3];
+    if (mon < 1 || mon > 12 || day < 1 || day > 31) continue;
+
+    const rest = ln.slice(dm[0].length);
+    const allAmts = [...rest.matchAll(/[\d,]+\.\d{2}/g)];
+    if (!allAmts.length) continue;
+
+    const txAmtMatch = allAmts.length >= 2 ? allAmts[allAmts.length - 2] : allAmts[0];
+    const balMatch   = allAmts.length >= 2 ? allAmts[allAmts.length - 1] : null;
+    const desc = rest.slice(0, txAmtMatch.index).trim();
+    if (!desc) continue;
+
+    let raw = parseFloat(txAmtMatch[0].replace(/,/g, ''));
+    if (!raw || isNaN(raw)) continue;
+
+    if (balMatch) {
+      const bal = parseFloat(balMatch[0].replace(/,/g, ''));
+      if (prevBalance !== null) {
+        const delta = bal - prevBalance;
+        if (Math.abs(delta + raw) < 0.50) raw = -raw; // balance went down → debit
+      }
+      prevBalance = bal;
+    }
+
+    const date = `${txYear}-${String(mon).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    txs.push({ date, name: desc, amount: raw });
+  }
+  return txs;
+}
+
+// ── Bank Detector + Dispatcher ─────────────────────────────────────────────────
+function detectBankFromLines(lines) {
+  const hdr = lines.slice(0, 50).join('\n');
+  if (/chase\.com|jpmorgan\s+chase|chase\s+bank|chase\s+total\s+checking|chase\s+sapphire|chase\s+freedom/i.test(hdr)) return 'chase';
+  if (/bank\s+of\s+america|bankofamerica\.com/i.test(hdr)) return 'bofa';
+  if (/wells\s+fargo|wellsfargo\.com/i.test(hdr)) return 'wellsfargo';
+  if (/city\s+national/i.test(hdr)) return 'citynational';
+  return null;
+}
+
 async function loadImportPDF(file) {
   const body = document.getElementById('modal-body');
   body.innerHTML = `<div style="text-align:center;padding:30px;color:var(--muted)">🔄 Parsing PDF statement…</div>`;
   try {
     const lines = await extractPDFLines(file);
-    const txs = parseBankStatementLines(lines);
-    console.log('[PDF] extracted lines:', lines.length, lines.slice(0,30));
-    console.log('[PDF] parsed txs:', txs.length, txs.slice(0,5));
+    const PARSERS = {
+      chase: parseChaseStatement,
+      bofa: parseBofAStatement,
+      wellsfargo: parseWellsFargoStatement,
+      citynational: parseBankStatementLines,
+    };
+
+    const detectedBank = detectBankFromLines(lines);
+    let txs = detectedBank ? PARSERS[detectedBank](lines) : [];
+
+    // Fallback: try every parser until one returns results
+    if (!txs.length) {
+      for (const [, parser] of Object.entries(PARSERS)) {
+        txs = parser(lines);
+        if (txs.length) break;
+      }
+    }
+
+    console.log('[PDF] bank:', detectedBank, 'lines:', lines.length, lines.slice(0, 30));
+    console.log('[PDF] txs:', txs.length, txs.slice(0, 5));
+
     if (!txs.length) {
       const preview = lines.slice(0, 20).map(l => esc(l)).join('<br>');
       body.innerHTML = `<div class="import-hint" style="color:var(--expense);padding:12px 20px">
-        ⚠️ No transactions found. Extracted ${lines.length} text lines — check browser console (F12) for details.<br><br>
-        <details><summary style="cursor:pointer;color:var(--muted);font-size:11px">First 20 extracted lines</summary>
+        ⚠️ No transactions found. Extracted ${lines.length} text lines.<br>
+        Supported banks: Chase, Bank of America, Wells Fargo, City National.<br><br>
+        <details><summary style="cursor:pointer;color:var(--muted);font-size:11px">First 20 extracted lines (for support)</summary>
         <pre style="font-size:10px;color:var(--muted);margin-top:8px;white-space:pre-wrap">${preview}</pre></details><br>
         <button class="btn btn-ghost btn-sm" onclick="backToUpload()">← Try again</button></div>`;
       return;
