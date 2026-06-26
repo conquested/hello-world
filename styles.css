@@ -996,6 +996,66 @@ body {
 .drop-zone-icon { font-size: 48px; margin-bottom: 12px; }
 .drop-zone-text { font-size: 16px; font-weight: 800; color: var(--text); letter-spacing: .5px; text-transform: uppercase; }
 
+/* ── Breakdown view ──────────────────────────────────── */
+.bd-month-nav { display: flex; align-items: center; gap: 8px; }
+.bd-month-lbl { font-size: 13px; font-weight: 700; min-width: 130px; text-align: center; letter-spacing: .4px; text-transform: uppercase; }
+
+.bd-top { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); margin-bottom: 20px; }
+@media (max-width: 700px) { .bd-top { grid-template-columns: 1fr; } }
+
+.bd-donut-card { background: var(--surface); padding: 20px 24px; display: flex; align-items: center; gap: 20px; }
+.bd-donut { flex-shrink: 0; }
+.bd-donut-stats { min-width: 0; }
+.bd-donut-spent { font-size: 26px; font-weight: 800; letter-spacing: -.5px; }
+.bd-donut-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 700; margin-top: 2px; }
+.bd-donut-budget { font-size: 12px; color: var(--muted); margin-top: 8px; }
+.bd-donut-left { font-size: 13px; font-weight: 700; margin-top: 2px; }
+
+.bd-metrics-card { background: var(--surface); padding: 16px 24px; }
+.bd-metrics-title { font-size: 9px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); font-weight: 700; margin-bottom: 10px; }
+.bd-metrics-table { width: 100%; border-collapse: collapse; }
+.bd-metrics-table th { text-align: right; font-size: 9px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); font-weight: 700; padding: 4px 0; border-bottom: 1px solid var(--border); }
+.bd-metrics-table th:first-child { text-align: left; }
+.bd-metrics-table td { padding: 6px 0; font-size: 13px; border-bottom: 1px solid var(--border); }
+.bd-metrics-table tr:last-child td { border-bottom: none; }
+.bd-metric-year { font-weight: 700; color: var(--muted); }
+.bd-metric-val { text-align: right; font-weight: 700; }
+.bd-metric-avg { color: var(--muted); font-weight: 600; }
+
+.bd-bars-card { background: var(--surface); border: 1px solid var(--border); }
+.bd-bars-head,
+.bd-row {
+  display: grid;
+  grid-template-columns: 180px 96px 1fr 96px;
+  align-items: center;
+  gap: 14px;
+  padding: 9px 18px;
+}
+.bd-bars-head {
+  border-bottom: 1px solid var(--border);
+  font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 700;
+}
+.bd-col-spent, .bd-col-budget { text-align: right; }
+.bd-row { border-bottom: 1px solid var(--border); }
+.bd-row:last-child { border-bottom: none; }
+.bd-row:hover { background: var(--surface2); }
+.bd-row-name { font-weight: 700; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bd-row-spent { text-align: right; font-weight: 700; font-size: 13px; }
+.bd-row-track { position: relative; height: 8px; background: var(--surface3); }
+.bd-row-bar { position: absolute; left: 0; top: 0; height: 100%; transition: width .4s ease; }
+.bd-row-tick { position: absolute; top: -3px; width: 2px; height: 14px; background: var(--text); opacity: .5; }
+.bd-row-budget { text-align: right; font-weight: 600; font-size: 12px; color: var(--muted); }
+.bd-row-budget.bd-over { color: var(--expense); }
+
+@media (max-width: 640px) {
+  .bd-bars-head { display: none; }
+  .bd-row { grid-template-columns: 1fr auto; grid-template-areas: "name spent" "track track" "budget budget"; gap: 6px; }
+  .bd-row-name { grid-area: name; }
+  .bd-row-spent { grid-area: spent; }
+  .bd-row-track { grid-area: track; }
+  .bd-row-budget { grid-area: budget; text-align: left; font-size: 11px; }
+}
+
 /* ── Print / PDF report ──────────────────────────────── */
 @media print {
   .sidebar-nav, .cal-topbar, .month-strip-wrap, .filter-bar-wrap, .budget-alert-strip,
