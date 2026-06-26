@@ -14,16 +14,20 @@ const CATEGORY_COLORS = {
   investment:    '#00C7BE', // mint
   other_income:  '#63E6BE', // light mint
   housing:       '#5856D6', // indigo
+  grocery:       '#30D158', // green   (Apple Card: Grocery)
   food:          '#FF9500', // orange  (Apple Card: Food & Drink)
-  transport:     '#007AFF', // blue    (Apple Card: Transportation)
-  streaming:     '#FF375F', // pink-red
-  entertainment: '#FF2D55', // pink    (Apple Card: Entertainment)
-  health:        '#FF453A', // red
-  utilities:     '#FFCC00', // yellow
   shopping:      '#AF52DE', // magenta (Apple Card: Shopping)
+  entertainment: '#FF2D55', // pink    (Apple Card: Entertainment)
+  streaming:     '#FF375F', // pink-red
+  travel:        '#64D2FF', // light cyan (Apple Card: Travel)
+  transport:     '#007AFF', // blue    (Apple Card: Transportation)
+  auto:          '#A2845E', // brown   (Apple Card: Auto)
+  health:        '#FF453A', // red     (Apple Card: Health & Wellness)
+  personal_care: '#FF6482', // rose
   fitness:       '#30B0C7', // teal
-  education:     '#5AC8FA', // light blue
+  utilities:     '#FFCC00', // yellow  (Apple Card: Bills & Utilities)
   subscriptions: '#BF5AF2', // purple
+  education:     '#5AC8FA', // light blue
   other:         '#8E8E93', // gray    (Apple Card: Other)
 };
 
@@ -65,18 +69,22 @@ const CATEGORIES = [
   { id:'freelance',     label:'Freelance',       icon:'💼', type:'income'  },
   { id:'investment',    label:'Investment',      icon:'📈', type:'income'  },
   { id:'other_income',  label:'Other Income',    icon:'📥', type:'income'  },
-  { id:'housing',       label:'Housing / Rent',  icon:'🏠', type:'expense' },
-  { id:'food',          label:'Food & Dining',   icon:'🍔', type:'expense' },
-  { id:'transport',     label:'Transport',       icon:'🚗', type:'expense' },
-  { id:'streaming',     label:'Streaming',       icon:'📺', type:'expense' },
-  { id:'entertainment', label:'Entertainment',   icon:'🎬', type:'expense' },
-  { id:'health',        label:'Health',          icon:'💊', type:'expense' },
-  { id:'utilities',     label:'Utilities',       icon:'⚡', type:'expense' },
-  { id:'shopping',      label:'Shopping',        icon:'🛍️', type:'expense' },
-  { id:'fitness',       label:'Fitness',         icon:'💪', type:'expense' },
-  { id:'education',     label:'Education',       icon:'📚', type:'expense' },
-  { id:'subscriptions', label:'Subscriptions',   icon:'📱', type:'expense' },
-  { id:'other',         label:'Other',           icon:'📌', type:'expense' },
+  { id:'housing',       label:'Housing / Rent',   icon:'🏠', type:'expense' },
+  { id:'grocery',       label:'Grocery',          icon:'🛒', type:'expense' },
+  { id:'food',          label:'Food & Drink',     icon:'🍔', type:'expense' },
+  { id:'shopping',      label:'Shopping',         icon:'🛍️', type:'expense' },
+  { id:'entertainment', label:'Entertainment',    icon:'🎬', type:'expense' },
+  { id:'streaming',     label:'Streaming',        icon:'📺', type:'expense' },
+  { id:'travel',        label:'Travel',           icon:'✈️', type:'expense' },
+  { id:'transport',     label:'Transportation',   icon:'🚗', type:'expense' },
+  { id:'auto',          label:'Auto',             icon:'🚙', type:'expense' },
+  { id:'health',        label:'Health & Wellness',icon:'💊', type:'expense' },
+  { id:'personal_care', label:'Personal Care',    icon:'💅', type:'expense' },
+  { id:'fitness',       label:'Fitness',          icon:'💪', type:'expense' },
+  { id:'utilities',     label:'Bills & Utilities',icon:'⚡', type:'expense' },
+  { id:'subscriptions', label:'Subscriptions',    icon:'📱', type:'expense' },
+  { id:'education',     label:'Education',         icon:'📚', type:'expense' },
+  { id:'other',         label:'Other',            icon:'📌', type:'expense' },
 ];
 
 const FREQS = [
