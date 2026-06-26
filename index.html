@@ -1,18 +1,119 @@
 <!DOCTYPE html>
-
-<html>
+<html lang="en">
 <head>
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-  <title>my-first-website</title>
-  <LINK href="styles.css" rel="stylesheet" type="text/css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VantagePoint Public Safety Portal</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
-
 <body>
 
-<img src="https://octodex.github.com/images/daftpunktocat-thomas.gif" id="octocat" alt="octocat-gif" />
+  <header class="site-header">
+    <div class="container header-inner">
+      <a href="index.html" class="logo-link">
+        <img src="images/logo.svg" alt="VantagePoint Public Safety Portal" class="logo">
+      </a>
+      <div class="header-divider"></div>
+      <span class="header-label">Department Hub</span>
+    </div>
+  </header>
 
-<!-- Change this code here by copy and pasting your template on line 15 -->
-<p>Welcome to your first GitHub Pages website!</p>
+  <section class="hub-hero">
+    <div class="container">
+      <h1>Public Safety Portal</h1>
+      <p>Select a department below to view active projects, allocations, and operational resources.</p>
+    </div>
+  </section>
+
+  <section class="cards-section">
+    <div class="container">
+      <div class="card-grid">
+
+        <a href="projects/safety.html" class="card">
+          <div class="card-top-bar"></div>
+          <div class="card-body">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2L3 7v5c0 5.25 3.75 10.17 9 11.25C17.25 22.17 21 17.25 21 12V7L12 2z" fill="#C8102E"/>
+                <path d="M9 12l2 2 4-4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <h2>Safety</h2>
+            <p>Public safety programs, response protocols, and community initiatives.</p>
+            <div class="card-arrow">View Projects <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><path d="M6.22 3.22a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06L7.28 12.78a.75.75 0 01-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 010-1.06z"/></svg></div>
+          </div>
+        </a>
+
+        <a href="projects/operations.html" class="card">
+          <div class="card-top-bar"></div>
+          <div class="card-body">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="12" cy="12" r="3" fill="#C8102E"/>
+                <path d="M19.07 4.93l-1.41 1.41M6.34 17.66l-1.41 1.41M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M12 2v2M12 20v2M2 12h2M20 12h2" stroke="#C8102E" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <h2>Operations</h2>
+            <p>Operational workflows, daily procedures, and departmental resources.</p>
+            <div class="card-arrow">View Projects <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><path d="M6.22 3.22a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06L7.28 12.78a.75.75 0 01-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 010-1.06z"/></svg></div>
+          </div>
+        </a>
+
+        <a href="projects/maintenance.html" class="card">
+          <div class="card-top-bar"></div>
+          <div class="card-body">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" fill="#C8102E"/>
+              </svg>
+            </div>
+            <h2>Maintenance</h2>
+            <p>Facility upkeep, equipment maintenance schedules, and work orders.</p>
+            <div class="card-arrow">View Projects <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><path d="M6.22 3.22a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06L7.28 12.78a.75.75 0 01-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 010-1.06z"/></svg></div>
+          </div>
+        </a>
+
+        <a href="projects/grants-received.html" class="card">
+          <div class="card-top-bar"></div>
+          <div class="card-body">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="2" y="8" width="20" height="13" rx="2" fill="#C8102E"/>
+                <path d="M2 12h20" stroke="#fff" stroke-width="1.5"/>
+                <path d="M7 3h10" stroke="#C8102E" stroke-width="2" stroke-linecap="round"/>
+                <path d="M10 3v5M14 3v5" stroke="#C8102E" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <h2>Grants Received</h2>
+            <p>Active and completed grant programs, awards, and compliance tracking.</p>
+            <div class="card-arrow">View Projects <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><path d="M6.22 3.22a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06L7.28 12.78a.75.75 0 01-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 010-1.06z"/></svg></div>
+          </div>
+        </a>
+
+        <a href="projects/funds-received.html" class="card">
+          <div class="card-top-bar"></div>
+          <div class="card-body">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="12" cy="12" r="10" fill="#C8102E"/>
+                <path d="M12 6v1.5m0 9V18m-3-6a3 3 0 016 0c0 2-3 3-3 3m0 0v1.5" stroke="#fff" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <h2>Funds Received</h2>
+            <p>Financial allocations, disbursements, and expenditure reporting.</p>
+            <div class="card-arrow">View Projects <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><path d="M6.22 3.22a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06L7.28 12.78a.75.75 0 01-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 010-1.06z"/></svg></div>
+          </div>
+        </a>
+
+      </div>
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>&copy; 2024 VantagePoint Public Safety Portal &mdash; All rights reserved.</p>
+    </div>
+  </footer>
 
 </body>
 </html>
