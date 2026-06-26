@@ -1,0 +1,120 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Monaco, "Courier New", "DejaVu Sans Mono", monospace;
+  background: #f5f5f5;
+  color: #333;
+}
+
+nav {
+  background: #24292e;
+  padding: 12px 20px;
+}
+
+nav a {
+  color: white;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+header {
+  background: #c0392b;
+  color: white;
+  padding: 50px 40px;
+  text-align: center;
+}
+
+header h1 {
+  font-size: 2.5rem;
+  margin-bottom: 10px;
+}
+
+header p {
+  font-size: 1rem;
+  opacity: 0.85;
+}
+
+main {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 50px 40px;
+}
+
+section {
+  margin-bottom: 50px;
+}
+
+section h2 {
+  font-size: 1.3rem;
+  margin-bottom: 25px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #c0392b;
+  color: #c0392b;
+}
+
+.contact-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+}
+
+.contact-card {
+  background: white;
+  border: 2px solid #e1e4e8;
+  border-radius: 8px;
+  padding: 30px 20px;
+  text-align: center;
+}
+
+.emergency-card {
+  border-color: #c0392b;
+}
+
+.contact-card .number {
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: #c0392b;
+  margin-bottom: 6px;
+}
+
+.contact-card .label {
+  font-size: 1rem;
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+.contact-card p {
+  font-size: 0.8rem;
+  color: #586069;
+}
+
+.resources ul {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.resources li {
+  background: white;
+  border: 2px solid #e1e4e8;
+  border-radius: 8px;
+  padding: 25px;
+}
+
+.resources li strong {
+  display: block;
+  font-size: 1rem;
+  margin-bottom: 8px;
+  color: #24292e;
+}
+
+.resources li p {
+  font-size: 0.8rem;
+  color: #586069;
+  line-height: 1.6;
+}
