@@ -88,6 +88,16 @@ body {
   border-left-color: var(--gold);
 }
 
+.nav-section-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.4px;
+  color: var(--muted);
+  padding: 18px 12px 5px;
+  opacity: .6;
+}
+
 .nav-bottom {
   border-top: 1px solid var(--border);
   padding: 8px 8px 0;
