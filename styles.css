@@ -6,63 +6,82 @@
 
 body {
   font-family: Monaco, "Courier New", "DejaVu Sans Mono", monospace;
-  background: #f5f5f5;
-  color: #333;
+  background: #eef1f5;
+  color: #1a2744;
 }
 
 header {
-  background: #24292e;
+  background: #1a2744;
   color: white;
   padding: 40px;
-  text-align: center;
 }
 
 header h1 {
-  font-size: 2.5rem;
-  margin-bottom: 8px;
+  font-size: 2rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
 }
 
 header p {
-  font-size: 1rem;
-  color: #aaa;
+  font-size: 0.85rem;
+  color: #9ab;
+  letter-spacing: 1px;
+  text-transform: uppercase;
 }
 
 main {
-  padding: 60px 40px;
-  max-width: 900px;
+  padding: 50px 40px;
+  max-width: 1100px;
   margin: 0 auto;
 }
 
 .category-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 30px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
 }
 
 .category-card {
   display: block;
   background: white;
-  border: 2px solid #e1e4e8;
-  border-radius: 8px;
-  padding: 40px 30px;
+  border-left: 5px solid #1a2744;
+  border-radius: 4px;
+  padding: 32px 28px;
   text-decoration: none;
-  color: #333;
+  color: #1a2744;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.07);
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .category-card:hover {
-  border-color: #0366d6;
-  box-shadow: 0 4px 12px rgba(3,102,214,0.15);
+  border-left-color: #2e6fc4;
+  box-shadow: 0 4px 14px rgba(46,111,196,0.18);
 }
 
-.category-card h2 {
-  font-size: 1.5rem;
-  margin-bottom: 12px;
-  color: #0366d6;
+.card-label {
+  font-size: 1.1rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+  color: #1a2744;
 }
 
 .category-card p {
-  font-size: 0.9rem;
-  color: #586069;
+  font-size: 0.78rem;
+  color: #5a6a82;
   line-height: 1.6;
+  display: block;
+  width: auto;
+  margin: 0;
+  font: 0.78rem Monaco, monospace;
+}
+
+footer {
+  text-align: center;
+  padding: 30px;
+  font-size: 0.7rem;
+  color: #9ab;
+  letter-spacing: 1px;
 }
