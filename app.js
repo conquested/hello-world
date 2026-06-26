@@ -1567,6 +1567,7 @@ function switchView(v) {
   if (v==='joint')    renderJointReport();
   if (v==='settings') renderSettings();
   if (v==='networth') renderNetWorth();
+  if (v==='breakdown') renderBreakdown();
 }
 
 function toggleSidebar() {
@@ -3178,6 +3179,143 @@ function showToast(msg, ms = 3000) {
   setTimeout(() => { t.classList.remove('toast-show'); setTimeout(() => t.remove(), 300); }, ms);
 }
 
+// ── Render: Breakdown ────────────────────────────────────────────────────────
+
+function bdShiftMonth(delta) {
+  S.month += delta;
+  if (S.month < 0)  { S.month = 11; S.year--; }
+  if (S.month > 11) { S.month = 0;  S.year++; }
+  renderBreakdown();
+}
+
+function bdDonut(spent, budget) {
+  const size = 96, sw = 13, r = (size - sw) / 2, circ = 2 * Math.PI * r;
+  const ratio = budget > 0 ? spent / budget : 0;
+  const pct   = Math.min(ratio, 1);
+  const color = budget > 0 && ratio >= 1 ? 'var(--expense)'
+              : ratio >= 0.85 ? 'var(--warn)' : 'var(--accent)';
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--surface3)" stroke-width="${sw}"/>
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}"
+      stroke-dasharray="${(pct*circ).toFixed(2)} ${circ.toFixed(2)}"
+      transform="rotate(-90 ${size/2} ${size/2})"/>
+  </svg>`;
+}
+
+function bdYearMetrics() {
+  const thisYear = new Date().getFullYear();
+  const out = [];
+  for (let y = thisYear; y > thisYear - 5; y--) {
+    let total = 0, monthsWithData = 0;
+    for (let m = 0; m < 12; m++) {
+      let mt = 0;
+      applyFilters(monthEvents(y, m)).forEach(({tx}) => {
+        txBreakdowns(tx).forEach(({categoryId, amount}) => {
+          if (getCat(categoryId).type === 'expense') mt += amount;
+        });
+      });
+      total += mt;
+      if (mt > 0) monthsWithData++;
+    }
+    out.push({ year: y, total, avg: monthsWithData ? total / monthsWithData : 0 });
+  }
+  return out;
+}
+
+function renderBreakdown() {
+  const el = document.getElementById('breakdown-content');
+  if (!el) return;
+
+  const lbl = document.getElementById('bd-month-lbl');
+  if (lbl) lbl.textContent = `${MONTHS[S.month]} ${S.year}`;
+
+  // Per-category expense totals for the active month (respects person/filter)
+  const catTotals = {};
+  applyFilters(monthEvents(S.year, S.month)).forEach(({tx}) => {
+    txBreakdowns(tx).forEach(({categoryId, amount}) => {
+      if (getCat(categoryId).type === 'expense')
+        catTotals[categoryId] = (catTotals[categoryId] || 0) + amount;
+    });
+  });
+
+  const ids = new Set([...Object.keys(catTotals), ...Object.keys(S.budgets)]);
+  const rows = [...ids]
+    .map(id => ({ id, cat: getCat(id), spent: catTotals[id] || 0, budget: S.budgets[id] || 0 }))
+    .filter(r => r.cat.type === 'expense' && (r.spent > 0 || r.budget > 0))
+    .sort((a, b) => b.spent - a.spent);
+
+  const totalSpent  = rows.reduce((s, r) => s + r.spent, 0);
+  const totalBudget = Object.entries(S.budgets)
+    .reduce((s, [id, b]) => getCat(id).type === 'expense' ? s + b : s, 0);
+
+  if (!rows.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">🧮</div>
+      <div>No spending or budgets for ${esc(MONTHS[S.month])} ${S.year}.</div>
+      <div class="empty-sm">Add transactions or set budgets to see the breakdown.</div></div>`;
+    return;
+  }
+
+  // Bars share one scale so they're visually comparable
+  const maxRef = Math.max(...rows.map(r => Math.max(r.spent, r.budget)), 1);
+
+  const barRows = rows.map(r => {
+    const ratio = r.budget > 0 ? r.spent / r.budget : null;
+    const color = ratio === null ? 'var(--muted)'
+                : ratio >= 1     ? 'var(--expense)'
+                : ratio >= 0.85  ? 'var(--warn)'
+                : 'var(--income)';
+    const barW  = Math.max(2, Math.round(r.spent / maxRef * 100));
+    const tick  = r.budget > 0 ? Math.round(r.budget / maxRef * 100) : null;
+    const over  = ratio !== null && ratio >= 1;
+    return `<div class="bd-row">
+      <div class="bd-row-name" title="${esc(r.cat.label)}">${r.cat.icon} ${esc(r.cat.label)}</div>
+      <div class="bd-row-spent">${fmt(r.spent)}</div>
+      <div class="bd-row-track">
+        <div class="bd-row-bar" style="width:${barW}%;background:${color}"></div>
+        ${tick !== null ? `<div class="bd-row-tick" style="left:${tick}%"></div>` : ''}
+      </div>
+      <div class="bd-row-budget ${over ? 'bd-over' : ''}">${r.budget > 0 ? fmt(r.budget) : '—'}</div>
+    </div>`;
+  }).join('');
+
+  const metricRows = bdYearMetrics().map(m => `<tr>
+      <td class="bd-metric-year">${m.year}</td>
+      <td class="bd-metric-val">${fmt(m.total)}</td>
+      <td class="bd-metric-val bd-metric-avg">${m.avg > 0 ? fmt(m.avg) : '—'}</td>
+    </tr>`).join('');
+
+  const overBudget = totalBudget > 0 && totalSpent >= totalBudget;
+
+  el.innerHTML = `
+    <div class="bd-top">
+      <div class="bd-donut-card">
+        <div class="bd-donut">${bdDonut(totalSpent, totalBudget)}</div>
+        <div class="bd-donut-stats">
+          <div class="bd-donut-spent ${overBudget ? 'expense-text' : ''}">${fmt(totalSpent)}</div>
+          <div class="bd-donut-lbl">spent this month</div>
+          <div class="bd-donut-budget">${totalBudget > 0 ? fmt(totalBudget) + ' total budget' : 'No budget set'}</div>
+          ${totalBudget > 0 ? `<div class="bd-donut-left ${overBudget ? 'expense-text' : 'income-text'}">${overBudget ? fmt(totalSpent - totalBudget) + ' over' : fmt(totalBudget - totalSpent) + ' left'}</div>` : ''}
+        </div>
+      </div>
+      <div class="bd-metrics-card">
+        <div class="bd-metrics-title">Spent per year</div>
+        <table class="bd-metrics-table">
+          <thead><tr><th>Year</th><th>Total</th><th>Avg / mo</th></tr></thead>
+          <tbody>${metricRows}</tbody>
+        </table>
+      </div>
+    </div>
+    <div class="bd-bars-card">
+      <div class="bd-bars-head">
+        <span class="bd-col-cat">Category</span>
+        <span class="bd-col-spent">Spent</span>
+        <span class="bd-col-track"></span>
+        <span class="bd-col-budget">Budget</span>
+      </div>
+      ${barRows}
+    </div>`;
+}
+
 // ── Budget Alerts ──────────────────────────────────────────────────────────────
 
 function getBudgetAlerts() {
@@ -3338,6 +3476,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('add-account-btn')?.addEventListener('click', () => openAccountModal());
   document.getElementById('report-btn')?.addEventListener('click', exportPDFReport);
+  document.getElementById('bd-prev')?.addEventListener('click', () => bdShiftMonth(-1));
+  document.getElementById('bd-next')?.addEventListener('click', () => bdShiftMonth(1));
 
   initDragDrop();
   checkNotifications();
