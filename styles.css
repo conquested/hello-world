@@ -1007,6 +1007,11 @@ body {
 .bd-spending-body { display: flex; align-items: center; gap: 40px; }
 @media (max-width: 760px) { .bd-spending-body { flex-direction: column; gap: 24px; align-items: flex-start; } }
 .bd-donut-wrap { position: relative; flex-shrink: 0; width: 184px; height: 184px; }
+.bd-donut-ring {
+  width: 184px; height: 184px; border-radius: 50%;
+  -webkit-mask: radial-gradient(circle, transparent 62%, #000 62.5%);
+  mask: radial-gradient(circle, transparent 62%, #000 62.5%);
+}
 .bd-donut-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
 .bd-donut-total { font-size: 22px; font-weight: 800; letter-spacing: -.5px; }
 .bd-donut-total-lbl { font-size: 9px; text-transform: uppercase; letter-spacing: 1.4px; color: var(--muted); font-weight: 700; margin-top: 2px; }

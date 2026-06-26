@@ -6,6 +6,60 @@ const PALETTE = [
   '#a855f7','#ec4899','#14b8a6','#84cc16','#0ea5e9',
 ];
 
+// Fixed per-category colors, Apple Card-inspired (Apple system palette).
+// Food→orange, Shopping→magenta, Transport→blue, Other→gray, etc.
+const CATEGORY_COLORS = {
+  salary:        '#34C759', // green
+  freelance:     '#30D158', // green
+  investment:    '#00C7BE', // mint
+  other_income:  '#63E6BE', // light mint
+  housing:       '#5856D6', // indigo
+  food:          '#FF9500', // orange  (Apple Card: Food & Drink)
+  transport:     '#007AFF', // blue    (Apple Card: Transportation)
+  streaming:     '#FF375F', // pink-red
+  entertainment: '#FF2D55', // pink    (Apple Card: Entertainment)
+  health:        '#FF453A', // red
+  utilities:     '#FFCC00', // yellow
+  shopping:      '#AF52DE', // magenta (Apple Card: Shopping)
+  fitness:       '#30B0C7', // teal
+  education:     '#5AC8FA', // light blue
+  subscriptions: '#BF5AF2', // purple
+  other:         '#8E8E93', // gray    (Apple Card: Other)
+};
+
+// Apple system palette for custom categories (stable hash, never random)
+const APPLE_PALETTE = [
+  '#FF9500','#FF2D55','#AF52DE','#5856D6','#007AFF',
+  '#32ADE6','#30B0C7','#00C7BE','#34C759','#FFCC00',
+  '#FF453A','#A2845E','#BF5AF2','#5AC8FA','#8E8E93',
+];
+
+function catColor(id) {
+  if (CATEGORY_COLORS[id]) return CATEGORY_COLORS[id];
+  let h = 0;
+  for (let i = 0; i < String(id).length; i++) h = (h * 31 + String(id).charCodeAt(i)) >>> 0;
+  return APPLE_PALETTE[h % APPLE_PALETTE.length];
+}
+
+// Conic-gradient ring that fades smoothly between segment colors instead of
+// hard breaks. Each segment keeps a solid core; boundaries blend over ~5°.
+function buildDonutGradient(segments) {
+  const total = segments.reduce((s, sg) => s + sg.v, 0);
+  if (!total) return 'var(--surface3)';
+  const stops = [];
+  let angle = 0;
+  segments.forEach(sg => {
+    const span = sg.v / total * 360;
+    const f = Math.min(5, span / 2);   // blend band half-width
+    stops.push(`${sg.c} ${(angle + f).toFixed(2)}deg`);
+    stops.push(`${sg.c} ${(angle + span - f).toFixed(2)}deg`);
+    angle += span;
+  });
+  // Close the seam smoothly back into the first color
+  stops.push(`${segments[0].c} 360deg`);
+  return `conic-gradient(from -90deg, ${stops.join(', ')})`;
+}
+
 const CATEGORIES = [
   { id:'salary',        label:'Salary',         icon:'💰', type:'income'  },
   { id:'freelance',     label:'Freelance',       icon:'💼', type:'income'  },
@@ -458,7 +512,7 @@ function renderAnalysis() {
       else {
         expenses+=amount;
         catTotals[categoryId] = (catTotals[categoryId]||0)+amount;
-        if (!catColors[categoryId]) catColors[categoryId]=tx.color||PALETTE[8];
+        if (!catColors[categoryId]) catColors[categoryId]=catColor(categoryId);
       }
     });
   });
@@ -3222,11 +3276,12 @@ function renderBreakdown() {
     return;
   }
 
-  // Stable color per category by rank
+  // Fixed color per category (never shifts month to month)
   const colorOf = {};
-  sorted.forEach(([id], i) => { colorOf[id] = PALETTE[i % PALETTE.length]; });
+  sorted.forEach(([id]) => { colorOf[id] = catColor(id); });
 
   const donutSegs = sorted.map(([id, v]) => ({ v, c: colorOf[id] }));
+  const donutGradient = buildDonutGradient(donutSegs);
   const VISIBLE = 9;
   const showAll = !!S.bdShowAll;
   const legendCats = showAll ? sorted : sorted.slice(0, VISIBLE);
@@ -3279,7 +3334,7 @@ function renderBreakdown() {
       <div class="bd-card-title">Spending by Category</div>
       <div class="bd-spending-body">
         <div class="bd-donut-wrap">
-          ${buildDonutSVG(donutSegs, 184, 30)}
+          <div class="bd-donut-ring" style="background:${donutGradient}"></div>
           <div class="bd-donut-center">
             <div class="bd-donut-total">${fmt(totalSpent)}</div>
             <div class="bd-donut-total-lbl">Total</div>
