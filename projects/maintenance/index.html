@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Maintenance - VantagePoint</title>
+  <link href="styles.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+  <nav><a href="../../index.html">&larr; Back to Portal</a></nav>
+  <header>
+    <h1>Maintenance</h1>
+    <p>Fleet Status &bull; Equipment Logs &bull; Work Orders</p>
+  </header>
+  <main>
+    <section>
+      <h2>Fleet Status</h2>
+      <table>
+        <thead>
+          <tr><th>Vehicle</th><th>Type</th><th>Year</th><th>Mileage</th><th>Last Service</th><th>Next Service</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Unit 7</td><td>Patrol SUV</td><td>2022</td><td>48,200</td><td>2026-04-10</td><td>2026-07-10</td><td class="status ok">Operational</td></tr>
+          <tr><td>Unit 12</td><td>Patrol Sedan</td><td>2021</td><td>62,500</td><td>2026-05-22</td><td>2026-08-22</td><td class="status ok">Operational</td></tr>
+          <tr><td>Engine 3</td><td>Fire Engine</td><td>2019</td><td>31,100</td><td>2026-06-01</td><td>2026-09-01</td><td class="status warn">Service Due</td></tr>
+          <tr><td>Medic 1</td><td>Ambulance</td><td>2023</td><td>27,800</td><td>2026-06-15</td><td>2026-09-15</td><td class="status ok">Operational</td></tr>
+          <tr><td>Unit 19</td><td>K-9 SUV</td><td>2020</td><td>74,300</td><td>2026-03-05</td><td>2026-06-05</td><td class="status alert">Overdue</td></tr>
+        </tbody>
+      </table>
+    </section>
+    <section>
+      <h2>Open Work Orders</h2>
+      <table>
+        <thead>
+          <tr><th>WO #</th><th>Asset</th><th>Issue</th><th>Priority</th><th>Assigned To</th><th>Opened</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>WO-881</td><td>Unit 19</td><td>Oil change &amp; tire rotation overdue</td><td class="priority high">High</td><td>Fleet Garage</td><td>2026-06-10</td></tr>
+          <tr><td>WO-882</td><td>Engine 3</td><td>Annual pump test certification</td><td class="priority med">Medium</td><td>Fleet Garage</td><td>2026-06-18</td></tr>
+          <tr><td>WO-883</td><td>Station 1 HVAC</td><td>AC unit not cooling bay</td><td class="priority med">Medium</td><td>Facilities</td><td>2026-06-22</td></tr>
+        </tbody>
+      </table>
+    </section>
+    <section>
+      <h2>Equipment Maintenance Log</h2>
+      <table>
+        <thead>
+          <tr><th>Date</th><th>Equipment</th><th>Work Performed</th><th>Tech</th><th>Cost</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>2026-06-15</td><td>Medic 1</td><td>Oil change, brake inspection</td><td>J. Hill</td><td>$320</td></tr>
+          <tr><td>2026-06-01</td><td>Engine 3</td><td>Ladder inspection, hose test</td><td>M. Cross</td><td>$750</td></tr>
+          <tr><td>2026-05-22</td><td>Unit 12</td><td>Transmission service</td><td>J. Hill</td><td>$480</td></tr>
+          <tr><td>2026-04-10</td><td>Unit 7</td><td>Routine 5k service</td><td>M. Cross</td><td>$210</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+</body>
+</html>

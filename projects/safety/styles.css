@@ -1,0 +1,21 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: Monaco, "Courier New", monospace; background: #eef1f5; color: #1a2744; }
+nav { background: #1a2744; padding: 12px 24px; }
+nav a { color: #9ab; text-decoration: none; font-size: 13px; }
+nav a:hover { color: white; }
+header { background: #1a5c2a; color: white; padding: 36px 40px; }
+header h1 { font-size: 1.8rem; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 6px; }
+header p { font-size: 0.78rem; opacity: 0.75; letter-spacing: 1px; }
+main { max-width: 1000px; margin: 0 auto; padding: 40px; }
+section { background: white; border-radius: 4px; padding: 30px; margin-bottom: 28px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
+section h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; color: #1a5c2a; border-bottom: 2px solid #1a5c2a; padding-bottom: 10px; margin-bottom: 20px; }
+table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+th { text-align: left; padding: 10px 12px; background: #eef1f5; color: #5a6a82; text-transform: uppercase; font-size: 0.68rem; letter-spacing: 1px; }
+td { padding: 10px 12px; border-bottom: 1px solid #eef1f5; }
+tr:last-child td { border-bottom: none; }
+.status { font-weight: bold; }
+.status.active { color: #c0392b; }
+.status.resolved { color: #1a5c2a; }
+.protocol-list { list-style: none; }
+.protocol-list li { padding: 12px 0; border-bottom: 1px solid #eef1f5; font-size: 0.78rem; }
+.protocol-list li:last-child { border-bottom: none; }

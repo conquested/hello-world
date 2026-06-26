@@ -1,0 +1,29 @@
+* {
+  margin: 0;
+  padding: 0;
+}
+
+nav {
+  padding: 15px 20px;
+  background: #24292e;
+}
+
+nav a {
+  color: white;
+  text-decoration: none;
+  font-family: Monaco, "Courier New", monospace;
+  font-size: 14px;
+}
+
+#octocat {
+  display: block;
+  width: 384px;
+  margin: 50px auto;
+}
+
+p {
+  display: block;
+  width: 400px;
+  margin: 50px auto;
+  font: 30px Monaco, "Courier New", "DejaVu Sans Mono", "Bitstream Vera Sans Mono", monospace;
+}
