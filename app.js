@@ -3188,38 +3188,9 @@ function bdShiftMonth(delta) {
   renderBreakdown();
 }
 
-function bdDonut(spent, budget) {
-  const size = 96, sw = 13, r = (size - sw) / 2, circ = 2 * Math.PI * r;
-  const ratio = budget > 0 ? spent / budget : 0;
-  const pct   = Math.min(ratio, 1);
-  const color = budget > 0 && ratio >= 1 ? 'var(--expense)'
-              : ratio >= 0.85 ? 'var(--warn)' : 'var(--accent)';
-  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--surface3)" stroke-width="${sw}"/>
-    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}"
-      stroke-dasharray="${(pct*circ).toFixed(2)} ${circ.toFixed(2)}"
-      transform="rotate(-90 ${size/2} ${size/2})"/>
-  </svg>`;
-}
-
-function bdYearMetrics() {
-  const thisYear = new Date().getFullYear();
-  const out = [];
-  for (let y = thisYear; y > thisYear - 5; y--) {
-    let total = 0, monthsWithData = 0;
-    for (let m = 0; m < 12; m++) {
-      let mt = 0;
-      applyFilters(monthEvents(y, m)).forEach(({tx}) => {
-        txBreakdowns(tx).forEach(({categoryId, amount}) => {
-          if (getCat(categoryId).type === 'expense') mt += amount;
-        });
-      });
-      total += mt;
-      if (mt > 0) monthsWithData++;
-    }
-    out.push({ year: y, total, avg: monthsWithData ? total / monthsWithData : 0 });
-  }
-  return out;
+function bdToggleAllCats() {
+  S.bdShowAll = !S.bdShowAll;
+  renderBreakdown();
 }
 
 function renderBreakdown() {
@@ -3229,90 +3200,111 @@ function renderBreakdown() {
   const lbl = document.getElementById('bd-month-lbl');
   if (lbl) lbl.textContent = `${MONTHS[S.month]} ${S.year}`;
 
-  // Per-category expense totals for the active month (respects person/filter)
+  const evs = applyFilters(monthEvents(S.year, S.month))
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  // Per-category expense totals (splits expanded)
   const catTotals = {};
-  applyFilters(monthEvents(S.year, S.month)).forEach(({tx}) => {
+  evs.forEach(({tx}) => {
     txBreakdowns(tx).forEach(({categoryId, amount}) => {
       if (getCat(categoryId).type === 'expense')
         catTotals[categoryId] = (catTotals[categoryId] || 0) + amount;
     });
   });
 
-  const ids = new Set([...Object.keys(catTotals), ...Object.keys(S.budgets)]);
-  const rows = [...ids]
-    .map(id => ({ id, cat: getCat(id), spent: catTotals[id] || 0, budget: S.budgets[id] || 0 }))
-    .filter(r => r.cat.type === 'expense' && (r.spent > 0 || r.budget > 0))
-    .sort((a, b) => b.spent - a.spent);
+  const sorted = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
+  const totalSpent = sorted.reduce((s, [, v]) => s + v, 0);
 
-  const totalSpent  = rows.reduce((s, r) => s + r.spent, 0);
-  const totalBudget = Object.entries(S.budgets)
-    .reduce((s, [id, b]) => getCat(id).type === 'expense' ? s + b : s, 0);
-
-  if (!rows.length) {
+  if (!sorted.length) {
     el.innerHTML = `<div class="empty-state"><div class="empty-icon">🧮</div>
-      <div>No spending or budgets for ${esc(MONTHS[S.month])} ${S.year}.</div>
-      <div class="empty-sm">Add transactions or set budgets to see the breakdown.</div></div>`;
+      <div>No spending for ${esc(MONTHS[S.month])} ${S.year}.</div>
+      <div class="empty-sm">Add transactions to see the spending breakdown.</div></div>`;
     return;
   }
 
-  // Bars share one scale so they're visually comparable
-  const maxRef = Math.max(...rows.map(r => Math.max(r.spent, r.budget)), 1);
+  // Stable color per category by rank
+  const colorOf = {};
+  sorted.forEach(([id], i) => { colorOf[id] = PALETTE[i % PALETTE.length]; });
 
-  const barRows = rows.map(r => {
-    const ratio = r.budget > 0 ? r.spent / r.budget : null;
-    const color = ratio === null ? 'var(--muted)'
-                : ratio >= 1     ? 'var(--expense)'
-                : ratio >= 0.85  ? 'var(--warn)'
-                : 'var(--income)';
-    const barW  = Math.max(2, Math.round(r.spent / maxRef * 100));
-    const tick  = r.budget > 0 ? Math.round(r.budget / maxRef * 100) : null;
-    const over  = ratio !== null && ratio >= 1;
-    return `<div class="bd-row">
-      <div class="bd-row-name" title="${esc(r.cat.label)}">${r.cat.icon} ${esc(r.cat.label)}</div>
-      <div class="bd-row-spent">${fmt(r.spent)}</div>
-      <div class="bd-row-track">
-        <div class="bd-row-bar" style="width:${barW}%;background:${color}"></div>
-        ${tick !== null ? `<div class="bd-row-tick" style="left:${tick}%"></div>` : ''}
+  const donutSegs = sorted.map(([id, v]) => ({ v, c: colorOf[id] }));
+  const VISIBLE = 9;
+  const showAll = !!S.bdShowAll;
+  const legendCats = showAll ? sorted : sorted.slice(0, VISIBLE);
+
+  const legendHtml = legendCats.map(([id, amt]) => {
+    const cat = getCat(id);
+    const pct = totalSpent > 0 ? (amt / totalSpent) * 100 : 0;
+    return `<div class="bd-leg-item">
+      <span class="bd-leg-dot" style="background:${colorOf[id]}"></span>
+      <div class="bd-leg-text">
+        <div class="bd-leg-name" title="${esc(cat.label)}">${cat.icon} ${esc(cat.label)}</div>
+        <div class="bd-leg-amt">${fmt(amt)} <span class="bd-leg-pct">(${pct.toFixed(1)}%)</span></div>
       </div>
-      <div class="bd-row-budget ${over ? 'bd-over' : ''}">${r.budget > 0 ? fmt(r.budget) : '—'}</div>
     </div>`;
   }).join('');
 
-  const metricRows = bdYearMetrics().map(m => `<tr>
-      <td class="bd-metric-year">${m.year}</td>
-      <td class="bd-metric-val">${fmt(m.total)}</td>
-      <td class="bd-metric-val bd-metric-avg">${m.avg > 0 ? fmt(m.avg) : '—'}</td>
-    </tr>`).join('');
+  const toggleHtml = sorted.length > VISIBLE
+    ? `<button class="bd-show-all" onclick="bdToggleAllCats()">${showAll ? 'Show fewer' : `Show all ${sorted.length} categories`} ▾</button>`
+    : '';
 
-  const overBudget = totalBudget > 0 && totalSpent >= totalBudget;
+  // Transactions list grouped by date
+  let txHtml = '';
+  let lastDate = null;
+  evs.forEach(({date, tx}) => {
+    if (date !== lastDate) {
+      lastDate = date;
+      const [y, m, dd] = date.split('-').map(Number);
+      txHtml += `<div class="bd-tx-date">${SHORT[m-1]} ${dd}, ${y}</div>`;
+    }
+    const cat = getCat(tx.categoryId);
+    const income = cat.type === 'income';
+    const who = tx.person === 'joint' ? 'Joint' : (S.persons[tx.person] || 'Person A');
+    txHtml += `<div class="bd-tx-row" onclick="editTx('${tx.id}')">
+      <span class="bd-tx-icon">${cat.icon}</span>
+      <span class="bd-tx-name" title="${esc(tx.name)}">${esc(tx.name)}</span>
+      <span class="bd-tx-cat">${esc(cat.label)}</span>
+      <span class="bd-tx-who">${esc(who)}</span>
+      <span class="bd-tx-amt ${income ? 'income-text' : ''}">${income ? '+' : ''}${fmt(tx.amount)}</span>
+    </div>`;
+  });
+
+  // Summary metrics (spending = expenses)
+  const expenseAmts = [];
+  evs.forEach(({tx}) => { if (getCat(tx.categoryId).type === 'expense') expenseAmts.push(tx.amount); });
+  const largest = expenseAmts.length ? Math.max(...expenseAmts) : 0;
+  const avg     = expenseAmts.length ? totalSpent / expenseAmts.length : 0;
 
   el.innerHTML = `
-    <div class="bd-top">
-      <div class="bd-donut-card">
-        <div class="bd-donut">${bdDonut(totalSpent, totalBudget)}</div>
-        <div class="bd-donut-stats">
-          <div class="bd-donut-spent ${overBudget ? 'expense-text' : ''}">${fmt(totalSpent)}</div>
-          <div class="bd-donut-lbl">spent this month</div>
-          <div class="bd-donut-budget">${totalBudget > 0 ? fmt(totalBudget) + ' total budget' : 'No budget set'}</div>
-          ${totalBudget > 0 ? `<div class="bd-donut-left ${overBudget ? 'expense-text' : 'income-text'}">${overBudget ? fmt(totalSpent - totalBudget) + ' over' : fmt(totalBudget - totalSpent) + ' left'}</div>` : ''}
+    <div class="bd-card bd-spending-card">
+      <div class="bd-card-title">Spending by Category</div>
+      <div class="bd-spending-body">
+        <div class="bd-donut-wrap">
+          ${buildDonutSVG(donutSegs, 184, 30)}
+          <div class="bd-donut-center">
+            <div class="bd-donut-total">${fmt(totalSpent)}</div>
+            <div class="bd-donut-total-lbl">Total</div>
+          </div>
+        </div>
+        <div class="bd-legend">
+          <div class="bd-legend-grid">${legendHtml}</div>
+          ${toggleHtml}
         </div>
       </div>
-      <div class="bd-metrics-card">
-        <div class="bd-metrics-title">Spent per year</div>
-        <table class="bd-metrics-table">
-          <thead><tr><th>Year</th><th>Total</th><th>Avg / mo</th></tr></thead>
-          <tbody>${metricRows}</tbody>
-        </table>
-      </div>
     </div>
-    <div class="bd-bars-card">
-      <div class="bd-bars-head">
-        <span class="bd-col-cat">Category</span>
-        <span class="bd-col-spent">Spent</span>
-        <span class="bd-col-track"></span>
-        <span class="bd-col-budget">Budget</span>
+
+    <div class="bd-lower">
+      <div class="bd-card bd-tx-card">
+        <div class="bd-card-title">Transactions <span class="muted">· ${evs.length}</span></div>
+        <div class="bd-tx-list">${txHtml}</div>
       </div>
-      ${barRows}
+      <div class="bd-card bd-summary-card">
+        <div class="bd-card-title">Summary</div>
+        <div class="bd-sum-row"><span class="bd-sum-lbl">Total transactions</span><span class="bd-sum-val">${evs.length}</span></div>
+        <div class="bd-sum-row"><span class="bd-sum-lbl">Largest transaction</span><span class="bd-sum-val">${fmt(largest)}</span></div>
+        <div class="bd-sum-row"><span class="bd-sum-lbl">Average transaction</span><span class="bd-sum-val">${fmt(avg)}</span></div>
+        <div class="bd-sum-row"><span class="bd-sum-lbl">Total spending</span><span class="bd-sum-val">${fmt(totalSpent)}</span></div>
+        <button class="bd-csv-btn" onclick="exportCSV()">Download CSV</button>
+      </div>
     </div>`;
 }
 
