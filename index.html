@@ -1,18 +1,245 @@
 <!DOCTYPE html>
-
-<html>
+<html lang="en">
 <head>
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-  <title>my-first-website</title>
-  <LINK href="styles.css" rel="stylesheet" type="text/css">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VantagePoint</title>
+  <link rel="icon" type="image/svg+xml" href="icon.svg" />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
 </head>
-
 <body>
+<div class="app">
 
-<img src="https://octodex.github.com/images/daftpunktocat-thomas.gif" id="octocat" alt="octocat-gif" />
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <aside class="sidebar-nav">
+    <div class="nav-logo">
+      <img src="icon.svg" alt="VantagePoint" />
+      <div class="nav-logo-wordmark">VANTAGE<span>POINT</span></div>
+      <div class="nav-logo-tagline">SEE MORE. SAVE MORE.</div>
+    </div>
+    <nav class="nav-links">
+      <button class="nav-btn active" data-view="calendar">📅 <span>Calendar</span></button>
 
-<!-- Change this code here by copy and pasting your template on line 15 -->
-<p>Welcome to your first GitHub Pages website!</p>
+      <div class="nav-section-label">Finances</div>
+      <button class="nav-btn" data-view="goals">🎯 <span>Goals</span></button>
+      <button class="nav-btn" data-view="debts">💳 <span>Debts</span></button>
+      <button class="nav-btn" data-view="networth">💎 <span>Net Worth</span></button>
 
+      <div class="nav-section-label">Insights</div>
+      <button class="nav-btn" data-view="trends">📊 <span>Trends</span></button>
+      <button class="nav-btn" data-view="vendors">🏪 <span>Vendors</span></button>
+      <button class="nav-btn" data-view="joint">👥 <span>Joint</span></button>
+    </nav>
+    <div class="nav-sync-row">
+      <span class="sync-dot" id="sync-dot"></span>
+      <span class="sync-lbl" id="sync-lbl"></span>
+    </div>
+    <div class="nav-bottom">
+      <button class="nav-btn" data-view="settings">⚙️ <span>Settings</span></button>
+      <button class="nav-btn" id="export-btn">⬇️ <span>Export Data</span></button>
+    </div>
+  </aside>
+
+  <div class="app-main">
+
+    <!-- CALENDAR VIEW -->
+    <div class="view active" id="view-calendar">
+      <div class="cal-topbar">
+        <div class="month-year-nav">
+          <button class="hamburger-btn" onclick="toggleSidebar()">☰</button>
+          <button class="icon-btn" id="prev-month">&#8249;</button>
+          <h1 class="cal-title" id="cal-title"></h1>
+          <button class="icon-btn" id="next-month">&#8250;</button>
+          <button class="btn btn-ghost btn-sm" id="today-btn">Today</button>
+        </div>
+        <div class="topbar-right">
+          <div id="person-toggle" class="person-filter-row"></div>
+          <input class="search-input" id="search-input" type="text" placeholder="Search transactions…" />
+          <button class="btn btn-ghost btn-sm" id="import-btn">📥 Import</button>
+          <button class="btn btn-ghost btn-sm" id="budgets-btn">💰 Budgets</button>
+          <button class="btn btn-ghost btn-sm" id="report-btn">🖨️ Report</button>
+          <button class="btn btn-primary" id="add-tx-btn">＋ Add</button>
+        </div>
+      </div>
+
+      <div class="month-strip-wrap">
+        <div class="month-strip" id="month-strip"></div>
+      </div>
+
+      <div class="filter-bar-wrap">
+        <div class="filter-bar" id="filter-bar"></div>
+      </div>
+
+      <div class="summary-row">
+        <div class="sum-card">
+          <div class="sum-label">Income</div>
+          <div class="sum-val income-text" id="sum-income">$0.00</div>
+        </div>
+        <div class="sum-card">
+          <div class="sum-label">Expenses</div>
+          <div class="sum-val expense-text" id="sum-expenses">$0.00</div>
+        </div>
+        <div class="sum-card">
+          <div class="sum-label">Balance</div>
+          <div class="sum-val" id="sum-balance">$0.00</div>
+        </div>
+        <div class="sum-card">
+          <div class="sum-label">Spending Rate</div>
+          <div class="spend-bar-wrap"><div class="spend-bar-fill" id="spend-bar-fill" style="width:0%"></div></div>
+          <div class="spend-rate-lbl" id="spend-rate-lbl">0% of income</div>
+        </div>
+      </div>
+
+      <div id="budget-alert-strip"></div>
+
+      <div class="cal-content">
+        <div class="cal-panel">
+          <div class="calendar-grid" id="calendar-grid"></div>
+        </div>
+        <div class="right-panel">
+          <div class="panel-box">
+            <div class="panel-title">Upcoming Bills <span class="muted">· next 30 days</span></div>
+            <div id="upcoming-list"></div>
+          </div>
+          <div class="panel-box" id="analysis-panel"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- GOALS VIEW -->
+    <div class="view" id="view-goals">
+      <div class="view-header">
+        <h1>🎯 Savings Goals</h1>
+        <button class="btn btn-primary" id="add-goal-btn">＋ New Goal</button>
+      </div>
+      <div class="view-content" id="goals-content"></div>
+    </div>
+
+    <!-- DEBTS VIEW -->
+    <div class="view" id="view-debts">
+      <div class="view-header">
+        <h1>💳 Debt Tracker</h1>
+        <button class="btn btn-primary" id="add-debt-btn">＋ Add Debt</button>
+      </div>
+      <div class="view-content" id="debts-content"></div>
+    </div>
+
+    <!-- VENDORS VIEW -->
+    <div class="view" id="view-vendors">
+      <div class="view-header">
+        <h1>🏪 Vendor Spending</h1>
+        <input class="search-input" id="vendor-search" type="text" placeholder="Search vendors…" style="width:200px" />
+      </div>
+      <div class="view-content" style="padding:0">
+        <div id="vendors-content"></div>
+      </div>
+    </div>
+
+    <!-- JOINT VIEW -->
+    <div class="view" id="view-joint">
+      <div class="view-header">
+        <h1>👥 Joint Report</h1>
+      </div>
+      <div class="view-content" style="padding:0">
+        <div id="joint-content"></div>
+      </div>
+    </div>
+
+    <!-- NET WORTH VIEW -->
+    <div class="view" id="view-networth">
+      <div class="view-header">
+        <h1>💎 Net Worth</h1>
+        <button class="btn btn-primary" id="add-account-btn">＋ Add Account</button>
+      </div>
+      <div class="view-content" id="networth-content"></div>
+    </div>
+
+    <!-- SETTINGS VIEW -->
+    <div class="view" id="view-settings">
+      <div class="view-header">
+        <h1>⚙️ Settings</h1>
+      </div>
+      <div class="view-content">
+        <div class="settings-section">
+          <div class="settings-section-title">☁️ Cloud Sync</div>
+          <div id="settings-sync"></div>
+        </div>
+        <div class="settings-section">
+          <div class="settings-section-title">People</div>
+          <div id="settings-persons"></div>
+        </div>
+        <div class="settings-section">
+          <div class="settings-section-title">Custom Categories</div>
+          <div id="settings-cats"></div>
+        </div>
+        <div class="settings-section">
+          <div class="settings-section-title">Data Management</div>
+          <div id="settings-data"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TRENDS VIEW -->
+    <div class="view" id="view-trends">
+      <div class="view-header">
+        <h1>📊 Trends</h1>
+        <div class="trends-header-controls">
+          <div class="trends-range-pills" id="trends-range-pills">
+            <button class="trend-pill active" data-months="6" onclick="setTrendsRange(6)">6 Mo</button>
+            <button class="trend-pill" data-months="3" onclick="setTrendsRange(3)">3 Mo</button>
+            <button class="trend-pill" data-months="12" onclick="setTrendsRange(12)">12 Mo</button>
+            <button class="trend-pill" data-months="24" onclick="setTrendsRange(24)">24 Mo</button>
+          </div>
+          <button class="btn btn-ghost btn-sm" id="yoy-btn" onclick="toggleYoY()">📅 YoY</button>
+          <button class="btn btn-ghost btn-sm" id="income-proj-btn">📐 Income Projection</button>
+        </div>
+      </div>
+      <div class="view-content">
+        <div class="trends-legend">
+          <span class="legend-dot" style="background:#22c55e"></span> Income &nbsp;
+          <span class="legend-dot" style="background:#ef4444"></span> Expenses
+        </div>
+        <div class="trends-chart" id="trends-chart"></div>
+        <div class="trends-section-label">Running Balance</div>
+        <div class="trends-chart trends-chart-sm" id="trends-running"></div>
+        <div class="trends-table" id="trends-table"></div>
+        <div class="trends-section-label">Category Breakdown by Month</div>
+        <div id="cat-trends"></div>
+        <div id="yoy-section"></div>
+        <div id="income-projection"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Drop zone overlay -->
+<div class="drop-zone-overlay" id="drop-zone-overlay">
+  <div class="drop-zone-inner">
+    <div class="drop-zone-icon">📂</div>
+    <div class="drop-zone-text">Drop CSV or PDF to import</div>
+  </div>
+</div>
+
+<!-- Universal Modal -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modal-title">Add Transaction</h2>
+      <button class="icon-btn" onclick="showModal(false)">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-danger btn-sm" id="modal-delete-btn" style="display:none" onclick="modalDelete()">Delete</button>
+      <div class="modal-footer-right">
+        <button class="btn btn-ghost" onclick="showModal(false)">Cancel</button>
+        <button class="btn btn-primary" id="modal-save-btn" onclick="modalSave()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
 </body>
 </html>

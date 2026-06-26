@@ -1,0 +1,45 @@
+{
+  "name": "vantagepoint",
+  "version": "1.0.0",
+  "description": "Personal finance and budget tracking desktop app",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.vantagepoint.app",
+    "productName": "VantagePoint",
+    "copyright": "Copyright © 2026",
+    "files": [
+      "index.html",
+      "styles.css",
+      "app.js",
+      "main.js",
+      "icon.svg",
+      "logo.png"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }]
+    },
+    "mac": {
+      "target": [{ "target": "dmg", "arch": ["x64", "arm64"] }],
+      "category": "public.app-category.finance"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}
